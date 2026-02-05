@@ -1,0 +1,17 @@
+view:
+  name: Contact Kanban
+  entityName: Contact
+  pattern: query
+  style: kanban
+  data:
+    sort:
+      - field: fullName
+        direction: asc
+    pageSize: 100
+  styleConfig:
+    laneField: status
+    titleField: fullName
+    subtitleField: email
+    detailFields:
+      - companyId
+      - phone

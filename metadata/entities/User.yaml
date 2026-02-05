@@ -1,0 +1,38 @@
+entity: User
+displayName: User
+pluralName: Users
+abbreviation: USR
+scope: global
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: email
+    type: email
+    validation:
+      required: true
+
+  - name: passwordHash
+    type: string
+    readOnly: true
+
+  - name: name
+    type: name
+    validation:
+      required: true
+
+  - name: active
+    type: boolean
+    default: true
+
+validators:
+  - type: unique
+    params:
+      fields: [email]
+    message: "A user with this email already exists"
+    code: DUPLICATE_EMAIL

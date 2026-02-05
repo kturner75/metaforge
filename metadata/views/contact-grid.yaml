@@ -1,0 +1,20 @@
+view:
+  name: Contact Grid
+  entityName: Contact
+  pattern: query
+  style: grid
+  data:
+    sort:
+      - field: fullName
+        direction: asc
+    pageSize: 25
+  styleConfig:
+    columns:
+      - field: fullName
+        pinned: left
+      - field: email
+      - field: companyId
+      - field: status
+      - field: healthStatus
+    selectable: false
+    inlineEdit: false

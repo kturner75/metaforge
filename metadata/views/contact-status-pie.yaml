@@ -1,0 +1,18 @@
+view:
+  name: Contacts by Status (Pie)
+  entityName: Contact
+  pattern: aggregate
+  style: pie-chart
+  data:
+    groupBy:
+      - status
+    measures:
+      - field: "*"
+        aggregate: count
+        label: count
+  styleConfig:
+    dimensionField: status
+    measureField: count
+    showLegend: true
+    showPercent: true
+    format: number

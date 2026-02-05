@@ -1,0 +1,35 @@
+entity: Tenant
+displayName: Tenant
+pluralName: Tenants
+abbreviation: TNT
+scope: global
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    validation:
+      required: true
+
+  - name: slug
+    type: string
+    validation:
+      required: true
+      pattern: "^[a-z0-9-]+$"
+
+  - name: active
+    type: boolean
+    default: true
+
+validators:
+  - type: unique
+    params:
+      fields: [slug]
+    message: "A tenant with this slug already exists"
+    code: DUPLICATE_SLUG

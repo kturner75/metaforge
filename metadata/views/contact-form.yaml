@@ -1,0 +1,25 @@
+view:
+  name: Contact Form
+  entityName: Contact
+  pattern: record
+  style: form
+  data: {}
+  styleConfig:
+    sections:
+      - label: Basic Info
+        fields:
+          - firstName
+          - lastName
+          - email
+          - phone
+      - label: Organization
+        fields:
+          - companyId
+          - status
+        columns: 2
+      - label: Notes
+        fields:
+          - notes
+        columns: 1
+        collapsible: true
+        defaultExpanded: true

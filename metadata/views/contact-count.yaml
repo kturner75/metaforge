@@ -1,0 +1,15 @@
+view:
+  name: Total Contacts
+  entityName: Contact
+  pattern: aggregate
+  style: kpi-card
+  data:
+    measures:
+      - field: id
+        aggregate: count
+        label: total_contacts
+  styleConfig:
+    label: Total Contacts
+    valueField: total_contacts
+    format: number
+    icon: "#"

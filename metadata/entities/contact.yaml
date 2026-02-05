@@ -1,0 +1,86 @@
+entity: Contact
+displayName: Contact
+pluralName: Contacts
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: tenantId
+    type: relation
+    displayName: Tenant
+    relation:
+      entity: Tenant
+      displayField: name
+    auto: context.tenantId
+    readOnly: true
+
+  - name: firstName
+    type: name
+    validation:
+      required: true
+
+  - name: lastName
+    type: name
+    validation:
+      required: true
+
+  - name: email
+    type: email
+
+  - name: phone
+    type: phone
+
+  - name: companyId
+    type: relation
+    displayName: Company
+    relation:
+      entity: Company
+      displayField: name
+
+  - name: status
+    type: picklist
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+      - value: lead
+        label: Lead
+    default: lead
+
+  - name: notes
+    type: text
+
+  - name: fullName
+    type: name
+    readOnly: true
+
+# Computed defaults
+defaults:
+  - field: fullName
+    expression: 'concat(firstName, " ", lastName)'
+    policy: overwrite
+    on: [create, update]
+
+# Validators
+validators:
+  # Expression validator - email required for active contacts
+  - type: conditionalRequired
+    params:
+      field: email
+      when: 'status == "active"'
+    message: "Email is required for active contacts"
+    code: EMAIL_REQUIRED_FOR_ACTIVE
+
+  # Expression validator - warning for contacts without company
+  - type: expression
+    params:
+      rule: 'companyId != null'
+    message: "Contact has no associated company"
+    code: NO_COMPANY
+    severity: warning

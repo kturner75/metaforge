@@ -1,0 +1,18 @@
+view:
+  name: Contacts by Status (Bar)
+  entityName: Contact
+  pattern: aggregate
+  style: bar-chart
+  data:
+    groupBy:
+      - status
+    measures:
+      - field: "*"
+        aggregate: count
+        label: count
+  styleConfig:
+    dimensionField: status
+    measureField: count
+    orientation: vertical
+    showValues: true
+    format: number

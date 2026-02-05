@@ -1,0 +1,50 @@
+entity: Company
+displayName: Company
+pluralName: Companies
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: tenantId
+    type: relation
+    displayName: Tenant
+    relation:
+      entity: Tenant
+      displayField: name
+    auto: context.tenantId
+    readOnly: true
+
+  - name: name
+    type: name
+    validation:
+      required: true
+
+  - name: industry
+    type: picklist
+    options:
+      - value: technology
+        label: Technology
+      - value: healthcare
+        label: Healthcare
+      - value: finance
+        label: Finance
+      - value: manufacturing
+        label: Manufacturing
+      - value: retail
+        label: Retail
+      - value: other
+        label: Other
+
+  - name: website
+    type: string
+
+  - name: phone
+    type: phone
+
+  - name: notes
+    type: text

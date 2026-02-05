@@ -1,0 +1,20 @@
+view:
+  name: Contacts by Status (Summary)
+  entityName: Contact
+  pattern: aggregate
+  style: summary-grid
+  data:
+    groupBy:
+      - status
+    measures:
+      - field: "*"
+        aggregate: count
+        label: count
+  styleConfig:
+    dimensionFields:
+      - status
+    measureFields:
+      - count
+    showTotals: true
+    format:
+      count: number

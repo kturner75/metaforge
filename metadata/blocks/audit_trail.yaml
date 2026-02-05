@@ -1,0 +1,20 @@
+block: AuditTrail
+description: Standard audit fields for tracking record creation and modification
+
+fields:
+  - name: createdBy
+    type: string
+    readOnly: true
+    auto: context.user_id
+  - name: createdAt
+    type: datetime
+    readOnly: true
+    auto: now
+  - name: updatedBy
+    type: string
+    readOnly: true
+    auto: context.user_id
+  - name: updatedAt
+    type: datetime
+    readOnly: true
+    auto: now

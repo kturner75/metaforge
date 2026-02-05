@@ -1,0 +1,24 @@
+block: AddressBlock
+description: Standard address fields with geocoding support
+
+fields:
+  - name: street
+    type: text
+  - name: city
+    type: string
+  - name: state
+    type: picklist
+    optionsSource: us_states
+  - name: postalCode
+    type: string
+    validation:
+      pattern: "^[0-9]{5}(-[0-9]{4})?$"
+  - name: country
+    type: picklist
+    optionsSource: countries
+    default: "US"
+  - name: latLong
+    type: string
+    readOnly: true
+    calculated:
+      expression: geocode(street, city, state, postalCode, country)

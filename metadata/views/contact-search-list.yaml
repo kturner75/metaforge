@@ -1,0 +1,21 @@
+view:
+  name: Contact Search
+  entityName: Contact
+  pattern: query
+  style: search-list
+  data:
+    sort:
+      - field: fullName
+        direction: asc
+    pageSize: 25
+  styleConfig:
+    titleField: fullName
+    subtitleField: email
+    searchFields:
+      - fullName
+      - email
+      - phone
+    displayFields:
+      - companyId
+      - phone
+    statusField: status

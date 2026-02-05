@@ -1,0 +1,55 @@
+entity: TenantMembership
+displayName: Tenant Membership
+pluralName: Tenant Memberships
+abbreviation: TM
+scope: global
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: userId
+    type: relation
+    displayName: User
+    validation:
+      required: true
+    relation:
+      entity: User
+      displayField: name
+      onDelete: cascade
+
+  - name: tenantId
+    type: relation
+    displayName: Tenant
+    validation:
+      required: true
+    relation:
+      entity: Tenant
+      displayField: name
+      onDelete: cascade
+
+  - name: role
+    type: picklist
+    validation:
+      required: true
+    options:
+      - value: admin
+        label: Admin
+      - value: manager
+        label: Manager
+      - value: user
+        label: User
+      - value: readonly
+        label: Read Only
+    default: user
+
+validators:
+  - type: unique
+    params:
+      fields: [userId, tenantId]
+    message: "User is already a member of this tenant"
+    code: DUPLICATE_MEMBERSHIP

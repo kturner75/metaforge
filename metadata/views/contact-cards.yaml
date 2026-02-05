@@ -1,0 +1,19 @@
+view:
+  name: Contact Cards
+  entityName: Contact
+  pattern: query
+  style: card-list
+  data:
+    sort:
+      - field: fullName
+        direction: asc
+    pageSize: 12
+  styleConfig:
+    titleField: fullName
+    subtitleField: email
+    detailFields:
+      - phone
+      - companyId
+      - status
+    statusField: status
+    columns: 3

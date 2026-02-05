@@ -1,0 +1,18 @@
+view:
+  name: Company Contacts
+  entityName: Contact
+  pattern: query
+  style: grid
+  data:
+    contextFilter:
+      field: companyId
+    sort:
+      - field: fullName
+        direction: asc
+    pageSize: 5
+  styleConfig:
+    columns:
+      - field: fullName
+      - field: email
+      - field: phone
+      - field: status

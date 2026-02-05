@@ -1,0 +1,16 @@
+block: ContactInfo
+description: Standard contact information fields
+
+fields:
+  - name: firstName
+    type: name
+    validation:
+      required: true
+  - name: lastName
+    type: name
+    validation:
+      required: true
+  - name: email
+    type: email
+  - name: phone
+    type: phone

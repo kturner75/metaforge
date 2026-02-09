@@ -8,8 +8,10 @@
  * 4. Renders the resolved presentation component
  */
 
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getStyleOrFallback } from '@/lib/styleRegistry'
+import { getRouteByEntity } from '@/lib/routeConfig'
 import { useQueryData } from '@/hooks/useQueryData'
 import { useAggregateData } from '@/hooks/useAggregateData'
 import { useRecordData } from '@/hooks/useRecordData'
@@ -30,7 +32,21 @@ interface ConfiguredComponentProps {
   serverErrors?: ValidationErrorBody | null
 }
 
-export function ConfiguredComponent({ config, parentContext, compact, onRowClick, onSubmit, onCancel, isSubmitting, serverErrors }: ConfiguredComponentProps) {
+export function ConfiguredComponent({ config, parentContext, compact, onRowClick: onRowClickProp, onSubmit, onCancel, isSubmitting, serverErrors }: ConfiguredComponentProps) {
+  const navigate = useNavigate()
+
+  // Default row click: navigate to the entity detail page when no explicit handler is provided.
+  // This makes embedded grids (tabs, dashboards) clickable without each parent wiring onRowClick.
+  const entityName = config.entityName ?? config.dataConfig?.entityName
+  const defaultRowClick = useCallback(
+    (row: Record<string, unknown>) => {
+      if (!entityName) return
+      const route = getRouteByEntity(entityName)
+      if (route && row.id) navigate(`/${route.slug}/${row.id}`)
+    },
+    [entityName, navigate]
+  )
+  const onRowClick = onRowClickProp ?? (config.pattern === 'query' ? defaultRowClick : undefined)
   const registration = useMemo(
     () => getStyleOrFallback(config.pattern, config.style),
     [config.pattern, config.style]
@@ -67,12 +83,36 @@ export function ConfiguredComponent({ config, parentContext, compact, onRowClick
 
   // All hooks are called unconditionally (React hook rules).
   // Inactive ones get a config that produces minimal work.
+  const isCompose = config.pattern === 'compose'
   const isQuery = config.pattern === 'query'
   const isAggregate = config.pattern === 'aggregate'
   const isRecord = config.pattern === 'record'
   const queryData = useQueryData(isQuery ? dataConfig : { entityName: '' })
   const aggregateData = useAggregateData(isAggregate ? dataConfig : { entityName: '' })
   const recordData = useRecordData(isRecord ? dataConfig : { entityName: '' })
+
+  // Need the dataConfig with live sort state for the presentation component.
+  // Must be called unconditionally (React hook rules) — before the compose early return.
+  const liveDataConfig: DataConfig = useMemo(
+    () =>
+      isQuery
+        ? { ...dataConfig, sort: queryData.sort }
+        : dataConfig,
+    [isQuery, dataConfig, queryData.sort]
+  )
+
+  // Compose pattern: delegate to the compose-specific component which manages
+  // its own data fetching and renders child ConfiguredComponent instances.
+  if (isCompose && registration.composeComponent) {
+    const ComposeComponent = registration.composeComponent
+    return (
+      <ComposeComponent
+        config={config}
+        styleConfig={mergedStyleConfig}
+        compact={compact}
+      />
+    )
+  }
 
   const active = isQuery ? queryData : isRecord ? recordData : aggregateData
 
@@ -81,15 +121,6 @@ export function ConfiguredComponent({ config, parentContext, compact, onRowClick
   // For query pattern, wire sort/pagination callbacks
   const handleSort = isQuery ? queryData.setSort : undefined
   const handlePageChange = isQuery ? queryData.setOffset : undefined
-
-  // Need the dataConfig with live sort state for the presentation component
-  const liveDataConfig: DataConfig = useMemo(
-    () =>
-      isQuery
-        ? { ...dataConfig, sort: queryData.sort }
-        : dataConfig,
-    [isQuery, dataConfig, queryData.sort]
-  )
 
   if (!metadata && !isLoading) {
     return <div className="error">Entity metadata not available</div>

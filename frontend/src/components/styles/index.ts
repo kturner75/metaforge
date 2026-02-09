@@ -26,6 +26,11 @@ import { PieChart } from './PieChart'
 import type { PieChartStyleConfig } from './PieChart'
 import { SummaryGrid } from './SummaryGrid'
 import type { SummaryGridStyleConfig } from './SummaryGrid'
+import { DetailPage } from './DetailPage'
+import { Dashboard } from './Dashboard'
+import type { DetailPageStyleConfig, DashboardStyleConfig } from '@/lib/viewTypes'
+import type { PresentationProps } from '@/lib/viewTypes'
+import type { ComponentType } from 'react'
 
 registerStyle<GridStyleConfig>({
   pattern: 'query',
@@ -149,4 +154,30 @@ registerStyle<SummaryGridStyleConfig>({
     showTotals: true,
   },
   label: 'Summary Grid',
+})
+
+registerStyle<DetailPageStyleConfig>({
+  pattern: 'compose',
+  style: 'detail-page',
+  component: (() => null) as unknown as ComponentType<PresentationProps<DetailPageStyleConfig>>,
+  composeComponent: DetailPage,
+  defaultStyleConfig: {
+    headerFields: [],
+    tabMode: 'full',
+    tabs: [],
+  },
+  label: 'Detail Page',
+})
+
+registerStyle<DashboardStyleConfig>({
+  pattern: 'compose',
+  style: 'dashboard',
+  component: (() => null) as unknown as ComponentType<PresentationProps<DashboardStyleConfig>>,
+  composeComponent: Dashboard,
+  defaultStyleConfig: {
+    columns: 3,
+    gap: 16,
+    panels: [],
+  },
+  label: 'Dashboard',
 })

@@ -1,0 +1,16 @@
+view:
+  name: Company Detail Page
+  entityName: Company
+  pattern: compose
+  style: detail-page
+  data: {}
+  styleConfig:
+    headerFields:
+      - name
+      - industry
+      - website
+      - phone
+    tabMode: full
+    tabs:
+      - label: Contacts
+        componentConfig: "yaml:company-contacts-grid"

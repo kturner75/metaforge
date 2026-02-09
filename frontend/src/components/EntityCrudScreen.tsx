@@ -13,7 +13,6 @@ import { useEntityCrud } from '@/hooks/useEntityCrud'
 import { useResolvedConfig } from '@/hooks/useViewConfig'
 import { ConfiguredComponent } from './ConfiguredComponent'
 import { WarningDialog } from './WarningDialog'
-import { DashboardSection } from './DashboardSection'
 import type { ConfigBase } from '@/lib/viewTypes'
 
 type ScreenMode = 'list' | 'create' | 'edit' | 'detail'
@@ -80,15 +79,27 @@ export function EntityCrudScreen() {
     [resolvedFormConfig, formConfigError, entityName]
   )
 
-  // Resolve detail config (falls back to auto-generated)
+  // Resolve dashboard config for list view (optional — renders below the grid)
+  const { data: resolvedDashboardConfig } = useResolvedConfig(entityName, 'dashboard')
+
+  // Resolve detail configs: prefer compose/detail-page, fall back to record/detail
+  const { data: resolvedDetailPageConfig } = useResolvedConfig(entityName, 'detail-page')
   const { data: resolvedDetailConfig, isError: detailConfigError } = useResolvedConfig(entityName, 'detail')
   const detailConfig = useCallback(
     (recordId: string): ConfigBase => {
+      // Prefer compose/detail-page config if available (entity overview page)
+      if (resolvedDetailPageConfig) {
+        return {
+          ...resolvedDetailPageConfig,
+          dataConfig: { ...resolvedDetailPageConfig.dataConfig, recordId },
+        }
+      }
+      // Fall back to record/detail
       const base = resolvedDetailConfig ?? (detailConfigError ? autoConfig(entityName, 'record', 'detail') : null)
       if (!base) return autoConfig(entityName, 'record', 'detail', { recordId })
       return { ...base, dataConfig: { ...base.dataConfig, recordId } }
     },
-    [resolvedDetailConfig, detailConfigError, entityName]
+    [resolvedDetailPageConfig, resolvedDetailConfig, detailConfigError, entityName]
   )
 
   const handleRowClick = useCallback(
@@ -144,8 +155,8 @@ export function EntityCrudScreen() {
             <ConfiguredComponent config={listConfig} onRowClick={handleRowClick} />
           )}
           {!listConfig && <div className="loading">Loading...</div>}
-          {routeConfig.dashboardConfigIds && (
-            <DashboardSection dashboardConfig={routeConfig.dashboardConfigIds} />
+          {resolvedDashboardConfig && (
+            <ConfiguredComponent config={resolvedDashboardConfig} />
           )}
         </>
       )}

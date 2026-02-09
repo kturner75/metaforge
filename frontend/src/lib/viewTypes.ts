@@ -80,4 +80,55 @@ export interface StyleRegistration<TStyleConfig = Record<string, unknown>> {
   inferConfig?: (metadata: EntityMetadata) => Partial<TStyleConfig>
   /** Optional: suggested page size for this style (used during style swap) */
   suggestedPageSize?: number
+  /** For compose-pattern styles: component that manages its own data fetching */
+  composeComponent?: ComponentType<ComposeProps>
+}
+
+// --- Compose Pattern ---
+
+export interface TabConfig {
+  /** Tab display label */
+  label: string
+  /** Config ID to resolve for this tab (e.g., "yaml:company-contacts-grid") */
+  componentConfig: string
+}
+
+export interface DetailPageStyleConfig {
+  /** Field names to display in the header section */
+  headerFields: string[]
+  /** Tab layout mode: full (vertical sidebar) or inline (horizontal tabs) */
+  tabMode: 'full' | 'inline'
+  /** Tab definitions */
+  tabs: TabConfig[]
+}
+
+export interface ComposeProps {
+  /** The full config (for entityName, dataConfig.recordId, etc.) */
+  config: ConfigBase
+  /** Merged style config */
+  styleConfig: Record<string, unknown>
+  /** When true, render in compact mode */
+  compact?: boolean
+}
+
+// --- Dashboard ---
+
+export interface DashboardPanel {
+  /** Config ID to render in this panel (e.g., "yaml:contact-count") */
+  componentConfig: string
+  /** CSS grid column span (default: 1) */
+  colSpan?: number
+  /** CSS grid row span (default: 1) */
+  rowSpan?: number
+  /** Optional panel header label */
+  label?: string
+}
+
+export interface DashboardStyleConfig {
+  /** Number of CSS grid columns (default: 3) */
+  columns: number
+  /** Gap between panels in px (default: 16) */
+  gap?: number
+  /** Panel definitions */
+  panels: DashboardPanel[]
 }

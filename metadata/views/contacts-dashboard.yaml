@@ -1,0 +1,22 @@
+view:
+  name: Contacts Dashboard
+  entityName: Contact
+  pattern: compose
+  style: dashboard
+  data: {}
+  styleConfig:
+    columns: 3
+    gap: 16
+    panels:
+      - componentConfig: "yaml:contact-count"
+        colSpan: 1
+        label: Overview
+      - componentConfig: "yaml:contact-status-bar"
+        colSpan: 2
+        label: By Status
+      - componentConfig: "yaml:contact-status-pie"
+        colSpan: 1
+        label: Distribution
+      - componentConfig: "yaml:contact-status-summary"
+        colSpan: 2
+        label: Summary

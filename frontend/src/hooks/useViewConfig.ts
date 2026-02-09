@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchJson } from '@/lib/api'
+import { fetchJson, ApiError } from '@/lib/api'
 import type { ConfigBase } from '@/lib/viewTypes'
 
 const API = '/api/views'
@@ -52,7 +52,13 @@ export function useResolvedConfig(entityName: string, style: string) {
       fetchJson<ConfigSingleResponse>(
         `${API}/resolve?entity_name=${encodeURIComponent(entityName)}&style=${encodeURIComponent(style)}`
       ),
+    enabled: !!entityName,
     select: (res) => res.data,
+    // Don't retry on 404 — a missing config is expected, not transient.
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) return false
+      return failureCount < 2
+    },
   })
 }
 

@@ -10,7 +10,7 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 ## Inbox (Triage Needed)
 - [ ] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav (sections, ordering, icons, admin grouping)
 - [ ] Screen as a first-class concept: routable pages beyond entity CRUD (admin screens, dashboards, entity overview pages)
-- [ ] Context propagation for composed views: parent record ID flowing to child component configs in tabs/slots (e.g., Contacts grid filtered by Company on Company detail page)
+- [ ] Breadcrumb component: context-aware navigation trail (e.g., Company → Contact detail shows "Back to Company" instead of "Back to list")
 
 ## Design Decisions (Captured)
 
@@ -135,8 +135,9 @@ view:
 - [x] Detail style: read-only display with sections — `RecordDetail` component + `useRecordData` hook + record pattern in `ConfiguredComponent`
 
 ### Compose Pattern Styles
-- [ ] Dashboard style: grid layout, panel composition, refresh intervals
-- [ ] Detail Page style: record header + tabbed related components
+- [x] Detail Page style: record header + tabbed related components — `DetailPage` compose component with `ComposeProps`, `TabPanel` inner component, vertical/inline tab modes, `contextFilter` parent-to-child propagation
+- [x] Dashboard style: CSS grid of panels, each a `ConfiguredComponent` — `Dashboard` compose component, replaces hardcoded `DashboardSection`, config-driven via YAML
+- [x] Context propagation: `parentContext={{ recordId }}` flows to child `ConfiguredComponent`, injects `contextFilter` as `eq` condition on foreign-key field
 
 ### Cross-Cutting
 - [ ] DrillDown: context-passing from summary views to detail views
@@ -311,9 +312,23 @@ view:
 - [x] `useEntityCrud` hook — extracts CRUD mutations + warning acknowledgment state machine
 - [x] `routeConfig.ts` — static entity route definitions (Contact + Company), adding new entity requires one-line entry
 - [x] `AppLayout` shell with `Sidebar` (left nav with entity links) + header (user label, logout)
-- [x] `DashboardSection` — KPI + aggregate chart section for entity list views, driven by route config
 - [x] Classic/Config-Driven toggle removed — list always uses ConfiguredComponent
 - [x] EntityForm replaced by ConfiguredComponent with record/form in all CRUD flows
+
+### Compose Pattern (ADR-0008 Phase G)
+- [x] `ComposeProps` interface and `composeComponent` field on `StyleRegistration` — compose-pattern components manage their own data, bypass `PresentationProps` render path
+- [x] Compose branch in `ConfiguredComponent` — early return when `pattern === 'compose'`, delegates to `registration.composeComponent`
+- [x] `DetailPage` compose component (`compose/detail-page`): record header with `FieldRenderer` + tabbed child views via `TabPanel` inner component; `tabMode: full` (vertical sidebar) or `inline` (horizontal tabs); children receive `parentContext={{ recordId }}` for automatic `contextFilter` injection
+- [x] `EntityCrudScreen` prefers `compose/detail-page` config over `record/detail` for entity detail views; falls back when no compose config exists
+- [x] YAML config: `company-detail-page.yaml` — Company header (name, industry, website, phone) + Contacts tab referencing `yaml:company-contacts-grid`
+- [x] `Dashboard` compose component (`compose/dashboard`): CSS grid of panels with configurable columns, gap, colSpan/rowSpan; `DashboardPanelCard` inner component resolves child config and renders `ConfiguredComponent compact`
+- [x] YAML config: `contacts-dashboard.yaml` — 4-panel dashboard (KPI, bar chart, pie chart, summary grid) replaces hardcoded `DashboardSection`
+- [x] Migration: deleted `DashboardSection.tsx`, removed `dashboardConfigIds` from `routeConfig.ts` and `EntityRouteConfig` interface; dashboards now fully config-driven via `useResolvedConfig(entityName, 'dashboard')`
+
+### Bug Fixes (Phase G)
+- [x] Fixed "Rendered more hooks than during previous render" crash on Contact detail: `liveDataConfig` useMemo was after compose early return in `ConfiguredComponent`, causing hook count to change when config swapped from record→compose; moved above early return
+- [x] Fixed slow Companies list page (5-6s load): `useResolvedConfig` retried 404s 3× with exponential backoff; added `retry` function to skip retries on 404 (`ApiError.status === 404`) and `enabled: !!entityName` guard
+- [x] Default row-click navigation in `ConfiguredComponent`: embedded grids (tabs, dashboards) navigate to entity detail on click without explicit `onRowClick` wiring
 
 ### Documentation / ADRs
 - [x] 8 ADRs accepted: validation architecture, expression DSL, defaulting lifecycle, warning acknowledgment, message interpolation, entity scoping, agent skills, UI component configuration

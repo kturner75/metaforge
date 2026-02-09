@@ -12,11 +12,6 @@ export interface EntityRouteConfig {
   entityName: string
   /** Display label for navigation */
   label: string
-  /** Optional dashboard widget config IDs for the list view */
-  dashboardConfigIds?: {
-    kpi?: string
-    aggregates?: { id: string; label: string }[]
-  }
 }
 
 export const entityRoutes: EntityRouteConfig[] = [
@@ -24,14 +19,6 @@ export const entityRoutes: EntityRouteConfig[] = [
     slug: 'contacts',
     entityName: 'Contact',
     label: 'Contacts',
-    dashboardConfigIds: {
-      kpi: 'yaml:contact-count',
-      aggregates: [
-        { id: 'yaml:contact-status-bar', label: 'Bar Chart' },
-        { id: 'yaml:contact-status-pie', label: 'Pie Chart' },
-        { id: 'yaml:contact-status-summary', label: 'Summary Grid' },
-      ],
-    },
   },
   {
     slug: 'companies',

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from metaforge.auth.password import PasswordService
 from metaforge.metadata.loader import MetadataLoader
-from metaforge.persistence.sqlite import SQLiteAdapter
+from metaforge.persistence import DatabaseConfig, create_adapter
 
 
 def _parse_args():
@@ -28,7 +28,7 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _find_user_by_email(db: SQLiteAdapter, user_entity, email: str):
+def _find_user_by_email(db, user_entity, email: str):
     result = db.query(
         user_entity,
         filter={"conditions": [{"field": "email", "operator": "eq", "value": email}]},
@@ -37,7 +37,7 @@ def _find_user_by_email(db: SQLiteAdapter, user_entity, email: str):
     return result.get("data", [None])[0]
 
 
-def _ensure_membership(db: SQLiteAdapter, membership_entity, user_id: str, tenant_id: str, role: str, reset: bool):
+def _ensure_membership(db, membership_entity, user_id: str, tenant_id: str, role: str, reset: bool):
     membership_result = db.query(
         membership_entity,
         filter={
@@ -65,7 +65,7 @@ def _ensure_membership(db: SQLiteAdapter, membership_entity, user_id: str, tenan
 
 
 def _ensure_user(
-    db: SQLiteAdapter,
+    db,
     user_entity,
     membership_entity,
     password_service: PasswordService,
@@ -125,7 +125,8 @@ def main():
     loader.load_all()
 
     # Connect to database
-    db = SQLiteAdapter(db_path)
+    db_config = DatabaseConfig(url=f"sqlite:///{db_path}")
+    db = create_adapter(db_config)
     db.connect()
 
     # Initialize tables

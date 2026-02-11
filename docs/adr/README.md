@@ -14,6 +14,10 @@ This directory contains Architecture Decision Records (ADRs) for MetaForge.
 | [0006](0006-entity-scoping.md) | Entity Scoping (Global vs Tenant) | Accepted |
 | [0007](0007-agent-skills.md) | Agent Skills Architecture | Accepted |
 | [0008](0008-ui-component-configuration.md) | UI Component Configuration Model | Accepted |
+| [0009](0009-hook-system.md) | Entity Lifecycle Hook System | Proposed |
+| [0010](0010-auth-permissions-model.md) | Declarative Auth & Permissions Model | Proposed |
+| [0011](0011-navigation-screen-metadata.md) | Navigation & Screen Metadata | Proposed |
+| [0012](0012-persistence-migrations.md) | Persistence & Migrations Strategy | Proposed |
 
 ## Creating New ADRs
 

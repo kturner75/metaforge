@@ -15,7 +15,11 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "bcrypt<4.0.0",
     "pyjwt>=2.8.0",
+    "click>=8.0.0",
 ]
+
+[project.scripts]
+metaforge = "metaforge.cli.main:cli"
 
 [project.optional-dependencies]
 dev = [

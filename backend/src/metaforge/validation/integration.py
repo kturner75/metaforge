@@ -3,7 +3,7 @@
 This module bridges the gap between:
 - Metadata loader types (ValidatorConfig, DefaultConfig)
 - Validation system types (ValidatorDefinition, DefaultDefinition)
-- Persistence layer (SQLiteAdapter)
+- Persistence layer (PersistenceAdapter)
 """
 
 from typing import Any
@@ -14,7 +14,7 @@ from metaforge.metadata.loader import (
     FieldDefinition,
     ValidatorConfig,
 )
-from metaforge.persistence.sqlite import SQLiteAdapter
+from metaforge.persistence.adapter import PersistenceAdapter
 from metaforge.validation.services import (
     DefaultDefinition,
     DefaultingService,
@@ -94,14 +94,14 @@ def get_field_options(entity: EntityModel) -> dict[str, list[dict[str, str]]]:
 # =============================================================================
 
 
-class SQLiteQueryService:
-    """QueryService implementation that wraps SQLiteAdapter.
+class AdapterQueryService:
+    """QueryService implementation that wraps a PersistenceAdapter.
 
     This allows validators to query the database for uniqueness checks,
     reference validation, etc.
     """
 
-    def __init__(self, adapter: SQLiteAdapter, metadata_loader: Any):
+    def __init__(self, adapter: PersistenceAdapter, metadata_loader: Any):
         self.adapter = adapter
         self.metadata_loader = metadata_loader
 
@@ -200,14 +200,14 @@ class EntityLifecycleFactory:
 
     def __init__(
         self,
-        adapter: SQLiteAdapter,
+        adapter: PersistenceAdapter,
         metadata_loader: Any,
         secret_key: str = "default-secret-key-change-in-production",
     ):
         self.adapter = adapter
         self.metadata_loader = metadata_loader
         self.secret_key = secret_key
-        self._query_service = SQLiteQueryService(adapter, metadata_loader)
+        self._query_service = AdapterQueryService(adapter, metadata_loader)
 
     def create_lifecycle(
         self,
@@ -300,3 +300,7 @@ class EntityLifecycleFactory:
                 )
 
         return validators
+
+
+# Backward-compat alias
+SQLiteQueryService = AdapterQueryService

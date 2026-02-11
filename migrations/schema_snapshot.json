@@ -1,0 +1,311 @@
+{
+  "version": 2,
+  "generated_at": "2026-02-11T21:44:13.615983",
+  "entities": {
+    "Company": {
+      "name": "Company",
+      "table_name": "company",
+      "scope": "tenant",
+      "fields": {
+        "createdBy": {
+          "name": "createdBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "id": {
+          "name": "id",
+          "type": "id",
+          "storage_type": "TEXT",
+          "primary_key": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "relation",
+          "storage_type": "TEXT"
+        },
+        "name": {
+          "name": "name",
+          "type": "name",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "industry": {
+          "name": "industry",
+          "type": "picklist",
+          "storage_type": "TEXT"
+        },
+        "website": {
+          "name": "website",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "phone": {
+          "name": "phone",
+          "type": "phone",
+          "storage_type": "TEXT"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "storage_type": "TEXT"
+        },
+        "hq_state": {
+          "name": "hq_state",
+          "type": "picklist",
+          "storage_type": "TEXT"
+        }
+      }
+    },
+    "Tenant": {
+      "name": "Tenant",
+      "table_name": "tenant",
+      "scope": "global",
+      "fields": {
+        "createdBy": {
+          "name": "createdBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "id": {
+          "name": "id",
+          "type": "id",
+          "storage_type": "TEXT",
+          "primary_key": true
+        },
+        "name": {
+          "name": "name",
+          "type": "name",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "string",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "storage_type": "INTEGER"
+        }
+      }
+    },
+    "TenantMembership": {
+      "name": "TenantMembership",
+      "table_name": "tenant_membership",
+      "scope": "global",
+      "fields": {
+        "createdBy": {
+          "name": "createdBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "id": {
+          "name": "id",
+          "type": "id",
+          "storage_type": "TEXT",
+          "primary_key": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "relation",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "relation",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "role": {
+          "name": "role",
+          "type": "picklist",
+          "storage_type": "TEXT",
+          "required": true
+        }
+      }
+    },
+    "User": {
+      "name": "User",
+      "table_name": "user",
+      "scope": "global",
+      "fields": {
+        "createdBy": {
+          "name": "createdBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "id": {
+          "name": "id",
+          "type": "id",
+          "storage_type": "TEXT",
+          "primary_key": true
+        },
+        "email": {
+          "name": "email",
+          "type": "email",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "name": {
+          "name": "name",
+          "type": "name",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "storage_type": "INTEGER"
+        }
+      }
+    },
+    "Contact": {
+      "name": "Contact",
+      "table_name": "contact",
+      "scope": "tenant",
+      "fields": {
+        "createdBy": {
+          "name": "createdBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "updatedBy": {
+          "name": "updatedBy",
+          "type": "string",
+          "storage_type": "TEXT"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "datetime",
+          "storage_type": "TEXT"
+        },
+        "id": {
+          "name": "id",
+          "type": "id",
+          "storage_type": "TEXT",
+          "primary_key": true
+        },
+        "tenantId": {
+          "name": "tenantId",
+          "type": "relation",
+          "storage_type": "TEXT"
+        },
+        "firstName": {
+          "name": "firstName",
+          "type": "name",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "lastName": {
+          "name": "lastName",
+          "type": "name",
+          "storage_type": "TEXT",
+          "required": true
+        },
+        "email": {
+          "name": "email",
+          "type": "email",
+          "storage_type": "TEXT"
+        },
+        "phone": {
+          "name": "phone",
+          "type": "phone",
+          "storage_type": "TEXT"
+        },
+        "companyId": {
+          "name": "companyId",
+          "type": "relation",
+          "storage_type": "TEXT"
+        },
+        "status": {
+          "name": "status",
+          "type": "picklist",
+          "storage_type": "TEXT"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "storage_type": "TEXT"
+        },
+        "fullName": {
+          "name": "fullName",
+          "type": "name",
+          "storage_type": "TEXT"
+        }
+      }
+    }
+  }
+}

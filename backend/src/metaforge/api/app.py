@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from metaforge.metadata.loader import MetadataLoader
-from metaforge.persistence.sqlite import SQLiteAdapter
+from metaforge.persistence import PersistenceAdapter, DatabaseConfig, create_adapter
 from metaforge.core.types import get_field_type
 from metaforge.validation import (
     Operation,
@@ -36,7 +36,7 @@ from metaforge.views.endpoints import create_views_router
 
 # Global instances (initialized on startup)
 metadata_loader: MetadataLoader | None = None
-db: SQLiteAdapter | None = None
+db: PersistenceAdapter | None = None
 lifecycle_factory: EntityLifecycleFactory | None = None
 acknowledgment_service: WarningAcknowledgmentService | None = None
 jwt_service: JWTService | None = None
@@ -66,15 +66,16 @@ async def lifespan(app: FastAPI):
     metadata_loader = MetadataLoader(metadata_path)
     metadata_loader.load_all()
 
-    # Initialize database (allow override via environment variable for testing)
-    db_path_str = os.environ.get("METAFORGE_DB_PATH")
-    if db_path_str:
-        db_path = Path(db_path_str)
-    else:
-        db_path = base_path / "data" / "metaforge.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    # Initialize database (supports DATABASE_URL or METAFORGE_DB_PATH env vars)
+    db_config = DatabaseConfig.from_env(base_path)
 
-    db = SQLiteAdapter(db_path)
+    # Ensure parent directory exists for SQLite databases
+    if db_config.is_sqlite:
+        sqlite_path = db_config.url.replace("sqlite:///", "")
+        if sqlite_path and sqlite_path != ":memory:":
+            Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
+
+    db = create_adapter(db_config)
     db.connect()
 
     # Create tables for all entities

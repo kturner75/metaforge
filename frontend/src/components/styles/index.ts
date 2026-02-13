@@ -26,6 +26,14 @@ import { PieChart } from './PieChart'
 import type { PieChartStyleConfig } from './PieChart'
 import { SummaryGrid } from './SummaryGrid'
 import type { SummaryGridStyleConfig } from './SummaryGrid'
+import { TreeView } from './TreeView'
+import type { TreeStyleConfig } from './TreeView'
+import { CalendarView } from './CalendarView'
+import type { CalendarStyleConfig } from './CalendarView'
+import { TimeSeries } from './TimeSeries'
+import type { TimeSeriesStyleConfig } from './TimeSeries'
+import { Funnel } from './Funnel'
+import type { FunnelStyleConfig } from './Funnel'
 import { DetailPage } from './DetailPage'
 import { Dashboard } from './Dashboard'
 import type { DetailPageStyleConfig, DashboardStyleConfig } from '@/lib/viewTypes'
@@ -154,6 +162,61 @@ registerStyle<SummaryGridStyleConfig>({
     showTotals: true,
   },
   label: 'Summary Grid',
+})
+
+registerStyle<TreeStyleConfig>({
+  pattern: 'query',
+  style: 'tree',
+  component: TreeView,
+  defaultStyleConfig: {
+    titleField: '',
+    parentField: '',
+    detailFields: undefined,
+    indentPx: 24,
+  },
+  label: 'Tree View',
+  suggestedPageSize: 500,
+})
+
+registerStyle<CalendarStyleConfig>({
+  pattern: 'query',
+  style: 'calendar',
+  component: CalendarView,
+  defaultStyleConfig: {
+    dateField: '',
+    titleField: '',
+    eventColor: undefined,
+  },
+  label: 'Calendar',
+  suggestedPageSize: 500,
+})
+
+registerStyle<TimeSeriesStyleConfig>({
+  pattern: 'aggregate',
+  style: 'time-series',
+  component: TimeSeries,
+  defaultStyleConfig: {
+    timeField: '',
+    measureField: '',
+    chartType: 'line',
+    showPoints: true,
+    showGrid: true,
+  },
+  label: 'Time Series',
+})
+
+registerStyle<FunnelStyleConfig>({
+  pattern: 'aggregate',
+  style: 'funnel',
+  component: Funnel,
+  defaultStyleConfig: {
+    stageField: '',
+    measureField: '',
+    stageOrder: undefined,
+    showPercent: true,
+    showValues: true,
+  },
+  label: 'Funnel',
 })
 
 registerStyle<DetailPageStyleConfig>({

@@ -1,0 +1,13 @@
+view:
+  name: Contact Calendar
+  entityName: Contact
+  pattern: query
+  style: calendar
+  data:
+    sort:
+      - field: createdAt
+        direction: asc
+    pageSize: 500
+  styleConfig:
+    dateField: createdAt
+    titleField: fullName

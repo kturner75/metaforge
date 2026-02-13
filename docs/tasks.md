@@ -8,8 +8,8 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 - When a feature is done, move it to Completed and summarize key outcomes.
 
 ## Inbox (Triage Needed)
-- [ ] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav (sections, ordering, icons, admin grouping)
-- [ ] Screen as a first-class concept: routable pages beyond entity CRUD (admin screens, dashboards, entity overview pages)
+- [x] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav (sections, ordering, icons, admin grouping) — ADR-0011 implemented: `metadata/screens/*.yaml` loader, `GET /api/navigation` + `GET /api/screens/:slug`, sectioned sidebar with icons, permission-aware filtering, auto-generation for uncovered entities
+- [x] Screen as a first-class concept: routable pages beyond entity CRUD (admin screens, dashboards, entity overview pages) — `ScreenConfig` types with entity/dashboard/admin/custom types, `EntityCrudScreen` handles dashboard-type screens, screen-defined view config IDs
 - [ ] Breadcrumb component: context-aware navigation trail (e.g., Company → Contact detail shows "Back to Company" instead of "Back to list")
 
 ## Design Decisions (Captured)
@@ -118,17 +118,17 @@ view:
 - [x] Grid style: columns, sortable/filterable, selectable, inline edit — `QueryGrid` component
 - [x] Card List style: title/subtitle/detail fields, CSS grid layout, status badge — `CardList` component
 - [x] Search List style: filterable fields, search fields, display fields — `SearchList` component with client-side text search
-- [ ] Tree style: parentField, expandDepth, labelField, child counts
+- [x] Tree style: parentField, expand/collapse, detailFields, indentPx — `TreeView` component with client-side tree building, Expand All/Collapse All toolbar, compact mode
 - [x] Kanban style: laneField, card layout (read-only; drag-to-update deferred) — `KanbanBoard` component groups by picklist lanes
-- [ ] Calendar style: dateField, date ranges, day/week/month views
+- [x] Calendar style: dateField, titleField, month navigation, event display — `CalendarView` component with 7-column CSS grid, today highlighting, compact dot mode
 
 ### Aggregate Pattern Styles
 - [x] Summary Grid style: grouped aggregates with totals row — `SummaryGrid` component with HTML table + totals row
 - [x] Bar Chart style: dimension + measures, stacked/grouped, orientation — `BarChart` SVG component, vertical/horizontal
 - [x] Pie Chart style: dimension + measure, labels, donut variant — `PieChart` SVG component with legend, donut mode
-- [ ] Time Series style: date dimension, granularity, period comparison
+- [x] Time Series style: timeField, measureField, line/area chartType, dateTrunc bucketing — `TimeSeries` SVG component with gridlines, smart label stepping, backend strftime support
 - [x] KPI Card style: single measure display — `KpiCard` component with formatted value, icon, label
-- [ ] Funnel style: stage field, conversion percentages
+- [x] Funnel style: stageField, measureField, stageOrder, conversion percentages — `Funnel` SVG component with centered bars, percentage of top stage, compact mode
 
 ### Record Pattern Styles
 - [x] Form style: field ordering, sections, collapsible groups — `RecordForm` component with configurable sections, collapsible chevron, client+server validation

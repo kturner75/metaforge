@@ -1,0 +1,14 @@
+screen:
+  name: Contacts
+  slug: contacts
+  type: entity
+  entityName: Contact
+  nav:
+    section: CRM
+    order: 1
+    icon: users
+  views:
+    list: yaml:contact-grid
+    detail: yaml:contact-detail
+    create: yaml:contact-form
+    edit: yaml:contact-form

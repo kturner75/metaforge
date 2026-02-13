@@ -1,0 +1,51 @@
+entity: Category
+displayName: Category
+pluralName: Categories
+abbreviation: CAT
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: tenantId
+    type: relation
+    displayName: Tenant
+    relation:
+      entity: Tenant
+      displayField: name
+    auto: context.tenantId
+    readOnly: true
+
+  - name: name
+    type: name
+    validation:
+      required: true
+
+  - name: parentId
+    type: relation
+    displayName: Parent Category
+    relation:
+      entity: Category
+      displayField: name
+      onDelete: setNull
+
+  - name: description
+    type: text
+
+  - name: status
+    type: picklist
+    options:
+      - value: active
+        label: Active
+      - value: archived
+        label: Archived
+    default: active
+
+  - name: sortOrder
+    type: number
+    displayName: Sort Order
+    default: 0

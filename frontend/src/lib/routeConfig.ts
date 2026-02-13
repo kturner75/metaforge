@@ -25,6 +25,11 @@ export const entityRoutes: EntityRouteConfig[] = [
     entityName: 'Company',
     label: 'Companies',
   },
+  {
+    slug: 'categories',
+    entityName: 'Category',
+    label: 'Categories',
+  },
 ]
 
 export function getRouteBySlug(slug: string): EntityRouteConfig | undefined {

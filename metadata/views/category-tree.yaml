@@ -1,0 +1,17 @@
+view:
+  name: Category Tree
+  entityName: Category
+  pattern: query
+  style: tree
+  data:
+    sort:
+      - field: sortOrder
+        direction: asc
+    pageSize: 500
+  styleConfig:
+    titleField: name
+    parentField: parentId
+    detailFields:
+      - description
+      - status
+    indentPx: 24

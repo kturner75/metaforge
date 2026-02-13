@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MetaForge is a metadata-driven full-stack framework for data-centric web applications (CRMs, admin panels, dashboards). Metadata in YAML is the single source of truth for entities, fields, validations, and UI behavior.
+MetaForge is a metadata-driven full-stack framework for data-centric web applications (CRMs, admin panels, dashboards). Metadata in YAML is the single source of truth for entities, fields, validations, and UI behavior. See [docs/VISION.md](docs/VISION.md) for the full vision, architecture, and AI roadmap.
 
 ## Development Commands
 
@@ -57,3 +57,42 @@ npm run lint                 # Lint
 - Framework handles 80-90% of CRUD/UI boilerplate
 - End-users customize filters/views/dashboards without dev intervention
 - AI-assisted entity/screen generation at dev-time
+
+## Style Implementation Status
+
+Each style belongs to a data pattern and is registered in `frontend/src/components/styles/index.ts`.
+Cross-cutting features (contextFilter, compact mode) work across all implemented styles.
+
+### Completed
+| Pattern | Style | Component | YAML example |
+|-----------|---------------|---------------|-------------------------------|
+| query | grid | QueryGrid | contact-grid.yaml |
+| query | card-list | CardList | contact-cards.yaml |
+| query | search-list | SearchList | contact-search-list.yaml |
+| query | kanban | KanbanBoard | contact-kanban.yaml |
+| record | detail | RecordDetail | contact-detail.yaml |
+| record | form | RecordForm | contact-form.yaml |
+| aggregate | kpi-card | KpiCard | contact-count.yaml |
+| aggregate | bar-chart | BarChart | contact-status-bar.yaml |
+| aggregate | pie-chart | PieChart | contact-status-pie.yaml |
+| aggregate | summary-grid | SummaryGrid | contact-status-summary.yaml |
+| compose | detail-page | DetailPage | company-detail-page.yaml |
+| compose | dashboard | Dashboard | contacts-dashboard.yaml |
+| query | tree | TreeView | category-tree.yaml |
+| query | calendar | CalendarView | contact-calendar.yaml |
+| aggregate | time-series | TimeSeries | contact-created-timeseries.yaml |
+| aggregate | funnel | Funnel | contact-status-funnel.yaml |
+
+All 16 styles are implemented. The backend aggregate endpoint supports `dateTrunc` for time bucketing.
+A Category entity with self-referential `parentId` was added for tree-view demonstration.
+
+## Navigation & Screens (ADR-0011)
+
+Screens are defined in `metadata/screens/*.yaml` and are the routable entry points for the application.
+Each screen has a `type` (entity, dashboard, admin, custom), navigation placement (`nav.section`, `nav.order`, `nav.icon`),
+and optional view config references (`views.list`, `views.detail`, etc.).
+
+- **Backend**: `ScreenConfigLoader` loads YAML, `GET /api/navigation` returns permission-filtered nav tree, `GET /api/screens/:slug` returns screen definition
+- **Frontend**: `useNavigation()` hook drives the `Sidebar` (sections with icons), `useScreen()` provides screen config to `EntityCrudScreen`
+- **Auto-generation**: Entities without screen YAML get default screens in an "Entities" section
+- **Backward compatibility**: `routeConfig.ts` serves as final fallback for entity name resolution

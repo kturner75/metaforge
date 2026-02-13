@@ -1,14 +1,47 @@
 /**
- * Sidebar — left navigation with entity links.
+ * Sidebar — metadata-driven navigation with sections, icons, and permission filtering.
  *
- * Phase 1: Reads from static entityRoutes.
- * Phase 2: Will read from navigation metadata.
+ * Fetches the navigation tree from the API and renders grouped screen links.
+ * Falls back to static entityRoutes while the API is loading.
  */
 
 import { NavLink } from 'react-router-dom'
+import { useNavigation } from '@/hooks/useNavigation'
 import { entityRoutes } from '@/lib/routeConfig'
+import type { NavSection } from '@/lib/screenTypes'
+
+/** Simple icon map — emoji stand-ins for named icons. Replace with an icon library later. */
+const ICON_MAP: Record<string, string> = {
+  users: '👥',
+  building: '🏢',
+  'bar-chart': '📊',
+  shield: '🛡️',
+  tag: '🏷️',
+  settings: '⚙️',
+  'dollar-sign': '💰',
+  calendar: '📅',
+  list: '📋',
+  grid: '▦',
+}
+
+/** Fallback navigation sections from static routes (shown while API loads). */
+const fallbackSections: NavSection[] = [
+  {
+    name: 'CRM',
+    screens: entityRoutes.map((r) => ({
+      slug: r.slug,
+      label: r.label,
+      icon: null,
+      type: 'entity',
+    })),
+  },
+]
 
 export function Sidebar() {
+  const { data: nav } = useNavigation()
+
+  const sections = nav?.sections ?? fallbackSections
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -16,14 +49,26 @@ export function Sidebar() {
         <span className="sidebar-title">MetaForge</span>
       </div>
       <nav className="sidebar-nav">
-        {entityRoutes.map((route) => (
-          <NavLink
-            key={route.slug}
-            to={`/${route.slug}`}
-            className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-          >
-            {route.label}
-          </NavLink>
+        {sections.map((section) => (
+          <div key={section.name} className="sidebar-section">
+            <div className="sidebar-section-label">{section.name}</div>
+            {section.screens.map((screen) => (
+              <NavLink
+                key={screen.slug}
+                to={`/${screen.slug}`}
+                className={({ isActive }) =>
+                  `sidebar-link${isActive ? ' active' : ''}`
+                }
+              >
+                {screen.icon && (
+                  <span className="sidebar-icon">
+                    {ICON_MAP[screen.icon] ?? '•'}
+                  </span>
+                )}
+                {screen.label}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
     </aside>

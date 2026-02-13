@@ -1,0 +1,11 @@
+screen:
+  name: Companies
+  slug: companies
+  type: entity
+  entityName: Company
+  nav:
+    section: CRM
+    order: 2
+    icon: building
+  views:
+    detail: yaml:company-detail-page

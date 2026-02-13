@@ -1,8 +1,15 @@
 /**
- * EntityCrudScreen — generic CRUD screen for any entity.
+ * EntityCrudScreen — generic screen router for any screen type.
  *
- * Reads the entity slug from route params, determines mode (list/create/edit/detail)
- * from the URL path, and delegates all rendering to ConfiguredComponent.
+ * Reads the screen slug from route params, fetches the screen definition,
+ * determines mode (list/create/edit/detail) from the URL path,
+ * and delegates all rendering to ConfiguredComponent.
+ *
+ * Supports screen types:
+ * - entity: Full CRUD (list/create/edit/detail) with view config references
+ * - dashboard: Single compose/dashboard view
+ *
+ * Falls back to legacy routeConfig.ts if no screen metadata exists.
  */
 
 import { useMemo, useCallback } from 'react'
@@ -10,7 +17,8 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { getRouteBySlug } from '@/lib/routeConfig'
 import { useEntityMetadata } from '@/hooks/useApi'
 import { useEntityCrud } from '@/hooks/useEntityCrud'
-import { useResolvedConfig } from '@/hooks/useViewConfig'
+import { useResolvedConfig, useSavedConfig } from '@/hooks/useViewConfig'
+import { useScreen } from '@/hooks/useNavigation'
 import { ConfiguredComponent } from './ConfiguredComponent'
 import { WarningDialog } from './WarningDialog'
 import type { ConfigBase } from '@/lib/viewTypes'
@@ -53,40 +61,81 @@ export function EntityCrudScreen() {
   const navigate = useNavigate()
   const { mode, id } = useScreenMode()
 
+  // Fetch screen definition from navigation metadata (with routeConfig fallback)
+  const { data: screen } = useScreen(slug)
   const routeConfig = slug ? getRouteBySlug(slug) : undefined
-  const entityName = routeConfig?.entityName ?? ''
+  const entityName = screen?.entityName ?? routeConfig?.entityName ?? ''
+  const screenType = screen?.type ?? 'entity'
   const baseUrl = `/${slug}`
 
   const { data: metadata } = useEntityMetadata(entityName)
   const crud = useEntityCrud(entityName, baseUrl)
 
-  // Resolve grid config for list view (falls back to auto-generated)
-  const { data: resolvedGridConfig, isError: gridConfigError } = useResolvedConfig(entityName, 'grid')
+  // --- Config resolution ---
+  // Screen YAML can specify config IDs for each mode (e.g., views.list = "yaml:contact-grid").
+  // When specified, we fetch by ID. Otherwise, we fall back to resolving by entity+style.
+
+  const screenListConfigId = screen?.views?.list
+  const screenDetailConfigId = screen?.views?.detail
+  const screenCreateConfigId = screen?.views?.create
+  const screenEditConfigId = screen?.views?.edit
+  const screenDefaultConfigId = screen?.views?.default // for dashboard screens
+
+  // List view config
+  const { data: screenListConfig } = useSavedConfig(screenListConfigId)
+  const { data: resolvedGridConfig, isError: gridConfigError } = useResolvedConfig(
+    screenListConfigId ? '' : entityName, // skip resolve when screen specifies a config ID
+    'grid'
+  )
   const listConfig: ConfigBase | null = useMemo(() => {
+    if (screenListConfig) return screenListConfig
     if (resolvedGridConfig) return resolvedGridConfig
     if (gridConfigError) return autoConfig(entityName, 'query', 'grid')
-    return null // still loading
-  }, [resolvedGridConfig, gridConfigError, entityName])
+    return null
+  }, [screenListConfig, resolvedGridConfig, gridConfigError, entityName])
 
-  // Resolve form config (falls back to auto-generated)
-  const { data: resolvedFormConfig, isError: formConfigError } = useResolvedConfig(entityName, 'form')
+  // Form config (create/edit share a config, with recordId injected for edit)
+  const { data: screenCreateConfig } = useSavedConfig(screenCreateConfigId)
+  const { data: screenEditConfig } = useSavedConfig(screenEditConfigId)
+  const { data: resolvedFormConfig, isError: formConfigError } = useResolvedConfig(
+    (screenCreateConfigId && screenEditConfigId) ? '' : entityName,
+    'form'
+  )
   const formConfig = useCallback(
     (recordId?: string): ConfigBase => {
-      const base = resolvedFormConfig ?? (formConfigError ? autoConfig(entityName, 'record', 'form') : null)
+      const screenForm = recordId ? screenEditConfig : screenCreateConfig
+      const base = screenForm ?? resolvedFormConfig ?? (formConfigError ? autoConfig(entityName, 'record', 'form') : null)
       if (!base) return autoConfig(entityName, 'record', 'form', recordId ? { recordId } : {})
       return { ...base, dataConfig: { ...base.dataConfig, recordId: recordId ?? null } }
     },
-    [resolvedFormConfig, formConfigError, entityName]
+    [screenCreateConfig, screenEditConfig, resolvedFormConfig, formConfigError, entityName]
   )
 
-  // Resolve dashboard config for list view (optional — renders below the grid)
+  // Dashboard config for entity list view (optional — renders below the grid)
   const { data: resolvedDashboardConfig } = useResolvedConfig(entityName, 'dashboard')
 
-  // Resolve detail configs: prefer compose/detail-page, fall back to record/detail
-  const { data: resolvedDetailPageConfig } = useResolvedConfig(entityName, 'detail-page')
-  const { data: resolvedDetailConfig, isError: detailConfigError } = useResolvedConfig(entityName, 'detail')
+  // Dashboard screen default config (for type === 'dashboard')
+  const { data: dashboardDefaultConfig } = useSavedConfig(screenDefaultConfigId)
+
+  // Detail config: screen-specified or resolve by entity+style
+  const { data: screenDetailSavedConfig } = useSavedConfig(screenDetailConfigId)
+  const { data: resolvedDetailPageConfig } = useResolvedConfig(
+    screenDetailConfigId ? '' : entityName,
+    'detail-page'
+  )
+  const { data: resolvedDetailConfig, isError: detailConfigError } = useResolvedConfig(
+    screenDetailConfigId ? '' : entityName,
+    'detail'
+  )
   const detailConfig = useCallback(
     (recordId: string): ConfigBase => {
+      // Screen-specified detail config takes priority
+      if (screenDetailSavedConfig) {
+        return {
+          ...screenDetailSavedConfig,
+          dataConfig: { ...screenDetailSavedConfig.dataConfig, recordId },
+        }
+      }
       // Prefer compose/detail-page config if available (entity overview page)
       if (resolvedDetailPageConfig) {
         return {
@@ -99,7 +148,7 @@ export function EntityCrudScreen() {
       if (!base) return autoConfig(entityName, 'record', 'detail', { recordId })
       return { ...base, dataConfig: { ...base.dataConfig, recordId } }
     },
-    [resolvedDetailPageConfig, resolvedDetailConfig, detailConfigError, entityName]
+    [screenDetailSavedConfig, resolvedDetailPageConfig, resolvedDetailConfig, detailConfigError, entityName]
   )
 
   const handleRowClick = useCallback(
@@ -136,17 +185,36 @@ export function EntityCrudScreen() {
 
   const displayName = metadata?.displayName ?? entityName
   const pluralName = metadata?.pluralName ?? `${entityName}s`
+  const screenName = screen?.name
 
-  if (!routeConfig) {
-    return <div className="error">Entity not found</div>
+  // For unknown screens (no screen YAML and no routeConfig), show error
+  if (!screen && !routeConfig) {
+    return <div className="error">Screen not found</div>
   }
 
+  // --- Dashboard screen type ---
+  if (screenType === 'dashboard' && mode === 'list') {
+    return (
+      <div className="dashboard-screen">
+        <div className="entity-crud-header">
+          <h1>{screenName ?? 'Dashboard'}</h1>
+        </div>
+        {dashboardDefaultConfig ? (
+          <ConfiguredComponent config={dashboardDefaultConfig} />
+        ) : (
+          <div className="loading">Loading dashboard...</div>
+        )}
+      </div>
+    )
+  }
+
+  // --- Entity CRUD screen type ---
   return (
     <>
       {mode === 'list' && (
         <>
           <div className="entity-crud-header">
-            <h1>{pluralName}</h1>
+            <h1>{screenName ?? pluralName}</h1>
             <button className="primary" onClick={() => navigate(`${baseUrl}/new`)}>
               New {displayName}
             </button>

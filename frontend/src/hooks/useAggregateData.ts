@@ -31,8 +31,9 @@ export function useAggregateData(dataConfig: DataConfig): UseAggregateDataResult
         label: m.label,
       })),
       filter: dataConfig.filter,
+      dateTrunc: dataConfig.dateTrunc,
     }),
-    [dataConfig.groupBy, dataConfig.measures, dataConfig.filter],
+    [dataConfig.groupBy, dataConfig.measures, dataConfig.filter, dataConfig.dateTrunc],
   )
 
   const {

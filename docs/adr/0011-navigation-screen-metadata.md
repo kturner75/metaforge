@@ -1,7 +1,7 @@
 # ADR-0011: Navigation & Screen Metadata
 
 ## Status
-Proposed
+Accepted (core implemented; breadcrumbs deferred)
 
 ## Context
 MetaForge currently uses a static `routeConfig.ts` file to define entity routes. Adding a new entity requires manually adding an entry. The sidebar, breadcrumbs, and route structure are all hardcoded in React components.

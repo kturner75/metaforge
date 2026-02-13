@@ -51,6 +51,7 @@ export interface AggregateRequest {
   groupBy?: string[]
   measures?: { field: string; aggregate: string; label?: string }[]
   filter?: FilterGroup
+  dateTrunc?: Record<string, string>
 }
 
 export interface AggregateResult {

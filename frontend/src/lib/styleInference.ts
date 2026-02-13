@@ -101,6 +101,32 @@ function builtinInfer(
       .map((f) => ({ field: f.name }))
   }
 
+  // Tree view: find self-referential relation field
+  if ('parentField' in defaultConfig) {
+    const selfRelation = metadata.fields.find(
+      (f) => f.type === 'relation' && f.relation?.entity === metadata.entity,
+    )
+    result.parentField = selfRelation?.name
+  }
+
+  // Calendar / time-series: find first date or datetime field
+  if ('dateField' in defaultConfig) {
+    const allFields = metadata.fields
+    result.dateField =
+      findFirstByType(allFields, ['date', 'datetime'])?.name
+  }
+
+  if ('timeField' in defaultConfig) {
+    const allFields = metadata.fields
+    result.timeField =
+      findFirstByType(allFields, ['date', 'datetime'])?.name
+  }
+
+  // Funnel: find first picklist field for stage ordering
+  if ('stageField' in defaultConfig) {
+    result.stageField = findFirstByType(visibleFields, ['picklist'])?.name
+  }
+
   return result
 }
 

@@ -1,0 +1,11 @@
+screen:
+  name: Categories
+  slug: categories
+  type: entity
+  entityName: Category
+  nav:
+    section: CRM
+    order: 3
+    icon: tag
+  views:
+    list: yaml:category-tree

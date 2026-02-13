@@ -1,0 +1,11 @@
+screen:
+  name: Contacts Dashboard
+  slug: contacts-dashboard
+  type: dashboard
+  entityName: Contact
+  nav:
+    section: Analytics
+    order: 1
+    icon: bar-chart
+  views:
+    default: yaml:contacts-dashboard

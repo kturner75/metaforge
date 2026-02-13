@@ -55,6 +55,7 @@ class PersistenceAdapter(Protocol):
         group_by: list[str] | None = None,
         measures: list[dict] | None = None,
         filter: dict | None = None,
+        date_trunc: dict[str, str] | None = None,
     ) -> dict[str, Any]: ...
 
     def hydrate_relations(

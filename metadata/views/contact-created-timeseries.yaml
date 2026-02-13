@@ -1,0 +1,20 @@
+view:
+  name: Contacts Created Over Time
+  entityName: Contact
+  pattern: aggregate
+  style: time-series
+  data:
+    groupBy:
+      - createdAt
+    measures:
+      - field: "*"
+        aggregate: count
+        label: count
+    dateTrunc:
+      createdAt: month
+  styleConfig:
+    timeField: createdAt
+    measureField: count
+    chartType: line
+    showPoints: true
+    showGrid: true

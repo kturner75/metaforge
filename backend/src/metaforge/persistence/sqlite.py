@@ -354,12 +354,20 @@ class SQLiteAdapter:
 
     ALLOWED_AGGREGATES = {"count", "sum", "avg", "min", "max"}
 
+    DATE_TRUNC_FORMATS: dict[str, str] = {
+        "day": "%Y-%m-%d",
+        "week": "%Y-W%W",
+        "month": "%Y-%m",
+        "year": "%Y",
+    }
+
     def aggregate(
         self,
         entity: EntityModel,
         group_by: list[str] | None = None,
         measures: list[dict] | None = None,
         filter: dict | None = None,
+        date_trunc: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Aggregate records with GROUP BY and aggregate functions.
 
@@ -370,6 +378,10 @@ class SQLiteAdapter:
                       aggregate must be one of: count, sum, avg, min, max.
                       For count, field can be "*" to count all rows.
             filter: Optional filter (same format as query())
+            date_trunc: Optional mapping of field names to truncation levels
+                        (day, week, month, year). When a groupBy field has a
+                        date_trunc entry, it is wrapped in strftime() so that
+                        datetime values are bucketed to the specified level.
 
         Returns:
             {"data": [...], "total": N} where each data item has
@@ -384,14 +396,35 @@ class SQLiteAdapter:
         table_name = self._table_name(entity.name)
         entity_field_names = {f.name for f in entity.fields}
 
+        # Validate date_trunc levels
+        if date_trunc:
+            for field, level in date_trunc.items():
+                if level not in self.DATE_TRUNC_FORMATS:
+                    raise ValueError(
+                        f"Unsupported dateTrunc level '{level}' for field '{field}'. "
+                        f"Allowed: {', '.join(sorted(self.DATE_TRUNC_FORMATS))}"
+                    )
+
         # Validate group_by fields exist in entity
         if group_by:
             for gf in group_by:
                 if gf not in entity_field_names:
                     raise ValueError(f"Unknown field '{gf}' in groupBy")
 
-        # Build SELECT clause
-        select_parts: list[str] = list(group_by) if group_by else []
+        # Build SELECT and GROUP BY parts, applying date truncation where needed
+        select_parts: list[str] = []
+        group_parts: list[str] = []
+        if group_by:
+            for gf in group_by:
+                trunc_level = (date_trunc or {}).get(gf)
+                if trunc_level:
+                    fmt = self.DATE_TRUNC_FORMATS[trunc_level]
+                    expr = f"strftime('{fmt}', {gf})"
+                    select_parts.append(f"{expr} AS {gf}")
+                    group_parts.append(expr)
+                else:
+                    select_parts.append(gf)
+                    group_parts.append(gf)
 
         for m in measures:
             agg = m.get("aggregate", "").lower()
@@ -429,10 +462,15 @@ class SQLiteAdapter:
 
         # GROUP BY clause
         group_clause = ""
-        if group_by:
-            group_clause = f" GROUP BY {', '.join(group_by)}"
+        if group_parts:
+            group_clause = f" GROUP BY {', '.join(group_parts)}"
 
-        sql = f"SELECT {select_clause} FROM {table_name}{where_clause}{group_clause}"
+        # ORDER BY truncated group fields for chronological output
+        order_clause = ""
+        if group_parts:
+            order_clause = f" ORDER BY {', '.join(group_parts)}"
+
+        sql = f"SELECT {select_clause} FROM {table_name}{where_clause}{group_clause}{order_clause}"
         cursor = self.conn.execute(sql, where_values)
         rows = [dict(row) for row in cursor.fetchall()]
 

@@ -1,0 +1,21 @@
+view:
+  name: Contact Status Funnel
+  entityName: Contact
+  pattern: aggregate
+  style: funnel
+  data:
+    groupBy:
+      - status
+    measures:
+      - field: "*"
+        aggregate: count
+        label: count
+  styleConfig:
+    stageField: status
+    measureField: count
+    stageOrder:
+      - lead
+      - active
+      - inactive
+    showPercent: true
+    showValues: true

@@ -32,6 +32,8 @@ from metaforge.auth import (
 from metaforge.auth.endpoints import create_auth_router
 from metaforge.views import SavedConfigStore, ViewConfigLoader
 from metaforge.views.endpoints import create_views_router
+from metaforge.screens.loader import ScreenConfigLoader
+from metaforge.screens.endpoints import create_screens_router
 
 
 # Global instances (initialized on startup)
@@ -43,12 +45,13 @@ jwt_service: JWTService | None = None
 password_service: PasswordService | None = None
 config_store: SavedConfigStore | None = None
 view_loader: ViewConfigLoader | None = None
+screen_loader: ScreenConfigLoader | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown."""
-    global metadata_loader, db, lifecycle_factory, acknowledgment_service, jwt_service, password_service, config_store, view_loader
+    global metadata_loader, db, lifecycle_factory, acknowledgment_service, jwt_service, password_service, config_store, view_loader, screen_loader
 
     # Register validation functions and validators
     register_all_builtins()
@@ -101,6 +104,16 @@ async def lifespan(app: FastAPI):
         get_view_loader=lambda: view_loader,
     )
     app.include_router(views_router)
+
+    # Initialize screen configuration system
+    screen_loader = ScreenConfigLoader(metadata_path / "screens")
+    screen_loader.load_all()
+
+    screens_router = create_screens_router(
+        get_screen_loader=lambda: screen_loader,
+        get_metadata_loader=lambda: metadata_loader,
+    )
+    app.include_router(screens_router)
 
     # Initialize auth services (can be disabled via environment variable for testing)
     if os.environ.get("METAFORGE_DISABLE_AUTH", "").lower() not in ("1", "true", "yes"):
@@ -702,6 +715,7 @@ class AggregateRequest(BaseModel):
     groupBy: list[str] | None = None
     measures: list[dict[str, str]] | None = None
     filter: dict[str, Any] | None = None
+    dateTrunc: dict[str, str] | None = None
 
 
 @app.post("/api/aggregate/{entity}")
@@ -752,6 +766,7 @@ async def aggregate_entity(
             group_by=request.groupBy,
             measures=request.measures,
             filter=effective_filter,
+            date_trunc=request.dateTrunc,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))

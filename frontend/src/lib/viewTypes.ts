@@ -23,6 +23,8 @@ export interface DataConfig {
   measures?: Measure[]
   /** Declares which foreign-key field to filter by when embedded in a parent context */
   contextFilter?: { field: string }
+  /** Date truncation for aggregate groupBy fields (e.g., { createdAt: 'month' }) */
+  dateTrunc?: Record<string, 'day' | 'week' | 'month' | 'year'>
 }
 
 export interface Measure {

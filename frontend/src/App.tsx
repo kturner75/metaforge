@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { EntityCrudScreen } from '@/components/EntityCrudScreen'
 import { useAuthMe } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useNavigation } from '@/hooks/useNavigation'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -12,6 +13,7 @@ const queryClient = new QueryClient()
 function AuthenticatedRoutes() {
   const auth = useAuth()
   const { data: me } = useAuthMe(auth.isAuthenticated)
+  const { data: nav } = useNavigation()
 
   if (!auth.isAuthenticated) {
     return (
@@ -24,6 +26,7 @@ function AuthenticatedRoutes() {
   }
 
   const userLabel = me?.name || me?.email ? `Signed in as ${me?.name || me?.email}` : 'Signed in'
+  const defaultSlug = nav?.defaultScreen ?? 'contacts'
 
   const handleLogout = () => {
     auth.logout()
@@ -33,7 +36,7 @@ function AuthenticatedRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout userLabel={userLabel} onLogout={handleLogout} />}>
-        <Route index element={<Navigate to="/contacts" replace />} />
+        <Route index element={<Navigate to={`/${defaultSlug}`} replace />} />
         <Route path=":slug" element={<EntityCrudScreen />} />
         <Route path=":slug/new" element={<EntityCrudScreen />} />
         <Route path=":slug/:id" element={<EntityCrudScreen />} />

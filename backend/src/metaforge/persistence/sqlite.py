@@ -160,6 +160,116 @@ class SQLiteAdapter:
 
         return cursor.rowcount > 0
 
+    # -----------------------------------------------------------------
+    # Transaction management for hook system
+    # -----------------------------------------------------------------
+
+    def create_no_commit(
+        self,
+        entity: EntityModel,
+        data: dict[str, Any],
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Insert a new record without committing.
+
+        Same as create() but skips conn.commit(). The caller is
+        responsible for calling commit() or rollback().
+        """
+        if not self.conn or not self._sequence_service:
+            raise RuntimeError("Database not connected")
+
+        pk = entity.primary_key
+        if pk not in data or data[pk] is None:
+            data[pk] = self._sequence_service.next_id(
+                entity_name=entity.name,
+                abbreviation=entity.abbreviation,
+                scope=entity.scope,
+                tenant_id=tenant_id,
+            )
+
+        now = datetime.utcnow().isoformat()
+        if "createdAt" in [f.name for f in entity.fields]:
+            data.setdefault("createdAt", now)
+        if "updatedAt" in [f.name for f in entity.fields]:
+            data.setdefault("updatedAt", now)
+
+        field_names = [f.name for f in entity.fields if f.name in data]
+        placeholders = ["?" for _ in field_names]
+        values = [data[f] for f in field_names]
+
+        table_name = self._table_name(entity.name)
+        cols = ", ".join(field_names)
+        phs = ", ".join(placeholders)
+        sql = f"INSERT INTO {table_name} ({cols}) VALUES ({phs})"
+
+        self.conn.execute(sql, values)
+        # No commit — caller manages transaction
+
+        return self.get(entity, data[pk])
+
+    def update_no_commit(
+        self, entity: EntityModel, id: str, data: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Update a record without committing.
+
+        Same as update() but skips conn.commit().
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        if "updatedAt" in [f.name for f in entity.fields]:
+            data["updatedAt"] = datetime.utcnow().isoformat()
+
+        updatable = [
+            f.name for f in entity.fields
+            if f.name in data and not f.primary_key
+        ]
+
+        if not updatable:
+            return self.get(entity, id)
+
+        set_clause = ", ".join([f"{f} = ?" for f in updatable])
+        values = [data[f] for f in updatable]
+        values.append(id)
+
+        table_name = self._table_name(entity.name)
+        pk = entity.primary_key
+        sql = f"UPDATE {table_name} SET {set_clause} WHERE {pk} = ?"
+
+        self.conn.execute(sql, values)
+        # No commit — caller manages transaction
+
+        return self.get(entity, id)
+
+    def delete_no_commit(self, entity: EntityModel, id: str) -> bool:
+        """Delete a record without committing.
+
+        Same as delete() but skips conn.commit().
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        table_name = self._table_name(entity.name)
+        pk = entity.primary_key
+        sql = f"DELETE FROM {table_name} WHERE {pk} = ?"
+
+        cursor = self.conn.execute(sql, [id])
+        # No commit — caller manages transaction
+
+        return cursor.rowcount > 0
+
+    def commit(self) -> None:
+        """Commit the current transaction."""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        self.conn.commit()
+
+    def rollback(self) -> None:
+        """Roll back the current transaction."""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        self.conn.rollback()
+
     def handle_delete_relations(
         self,
         entity: EntityModel,

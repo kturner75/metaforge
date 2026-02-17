@@ -1,7 +1,7 @@
 # ADR-0009: Entity Lifecycle Hook System
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The entity save lifecycle (ADR-0003) currently follows a fixed three-phase pipeline: Defaults → Validation → Persist. ADR-0003 mentions "before hooks execute / after hooks execute" in Phase 3, but no hook architecture has been defined.

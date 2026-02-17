@@ -12,8 +12,10 @@ from metaforge.metadata.loader import (
     DefaultConfig,
     EntityModel,
     FieldDefinition,
+    HookConfig,
     ValidatorConfig,
 )
+from metaforge.hooks.types import HookDefinition
 from metaforge.persistence.adapter import PersistenceAdapter
 from metaforge.validation.services import (
     DefaultDefinition,
@@ -63,6 +65,16 @@ def default_config_to_definition(config: DefaultConfig) -> DefaultDefinition:
         policy=DefaultPolicy(config.policy),
         when=config.when,
         on=[Operation(op) for op in config.on],
+    )
+
+
+def hook_config_to_definition(config: HookConfig) -> HookDefinition:
+    """Convert metadata HookConfig to HookDefinition."""
+    return HookDefinition(
+        name=config.name,
+        on=[Operation(op) for op in config.on],
+        when=config.when,
+        description=config.description,
     )
 
 
@@ -300,6 +312,21 @@ class EntityLifecycleFactory:
                 )
 
         return validators
+
+    def get_hook_definitions(
+        self, entity: EntityModel, hook_point: str
+    ) -> list[HookDefinition]:
+        """Get hook definitions for an entity at a specific hook point.
+
+        Args:
+            entity: The entity model
+            hook_point: One of beforeSave, afterSave, afterCommit, beforeDelete
+
+        Returns:
+            List of HookDefinition for the given hook point (empty if none declared)
+        """
+        hook_configs = entity.hooks.get(hook_point, [])
+        return [hook_config_to_definition(h) for h in hook_configs]
 
 
 # Backward-compat alias

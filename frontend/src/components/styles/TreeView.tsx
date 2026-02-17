@@ -131,6 +131,7 @@ export function TreeView({
         <div
           className={`tree-node-row${onRowClick ? ' clickable' : ''}`}
           style={{ paddingLeft: `${depth * effectiveIndent}px` }}
+          onClick={() => onRowClick?.(node.row)}
         >
           <button
             className={`tree-toggle${isExpanded ? ' expanded' : ''}${hasChildren ? '' : ' invisible'}`}
@@ -142,10 +143,7 @@ export function TreeView({
           >
             &#9654;
           </button>
-          <span
-            className="tree-node-title"
-            onClick={() => onRowClick?.(node.row)}
-          >
+          <span className="tree-node-title">
             {titleMeta ? (
               <FieldRenderer field={titleMeta} context="display" value={fieldValue(node.row, titleMeta)} />
             ) : (

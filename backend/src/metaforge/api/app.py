@@ -22,6 +22,12 @@ from metaforge.validation import (
     register_canned_validators,
 )
 from metaforge.validation.integration import EntityLifecycleFactory
+from metaforge.hooks import (
+    HookContext,
+    HookService,
+    compute_changes,
+    register_builtin_hooks,
+)
 from metaforge.auth import (
     AuthMiddleware,
     JWTService,
@@ -46,16 +52,20 @@ password_service: PasswordService | None = None
 config_store: SavedConfigStore | None = None
 view_loader: ViewConfigLoader | None = None
 screen_loader: ScreenConfigLoader | None = None
+hook_service: HookService | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown."""
-    global metadata_loader, db, lifecycle_factory, acknowledgment_service, jwt_service, password_service, config_store, view_loader, screen_loader
+    global metadata_loader, db, lifecycle_factory, acknowledgment_service
+    global jwt_service, password_service, config_store, view_loader
+    global screen_loader, hook_service
 
-    # Register validation functions and validators
+    # Register validation functions, validators, and hooks
     register_all_builtins()
     register_canned_validators()
+    register_builtin_hooks()
 
     # Find metadata path (relative to cwd, which should be /backend)
     cwd = Path.cwd()
@@ -91,6 +101,7 @@ async def lifespan(app: FastAPI):
     secret_key = os.environ.get("METAFORGE_SECRET_KEY", "dev-secret-key-change-in-production")
     lifecycle_factory = EntityLifecycleFactory(db, metadata_loader, secret_key)
     acknowledgment_service = WarningAcknowledgmentService(secret_key)
+    hook_service = HookService()
 
     # Initialize view configuration system
     config_store = SavedConfigStore(db.conn)
@@ -395,9 +406,73 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
                 },
             )
 
-    # Validation passed, persist (pass tenant_id for sequence scoping)
+    # Validation passed — run hooks and persist
     tenant_id = user_context.tenant_id if user_context else None
-    saved = db.create(entity_model, result.record, tenant_id=tenant_id)
+
+    # Build hook context
+    hook_ctx = HookContext(
+        entity_name=entity,
+        operation=Operation.CREATE,
+        record=result.record,
+        original=None,
+        changes=None,
+        user_context=user_context,
+    )
+
+    # Phase 3a: beforeSave hooks
+    before_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeSave")
+    if before_save_defs and hook_service:
+        hook_result = await hook_service.run_hooks("beforeSave", before_save_defs, hook_ctx)
+        if hook_result and hook_result.abort:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "valid": False,
+                    "errors": [{
+                        "message": hook_result.abort,
+                        "code": "HOOK_ABORT",
+                        "severity": "error",
+                    }],
+                },
+            )
+
+    # Phase 3b: Persist (no commit yet if we have afterSave hooks)
+    after_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterSave")
+    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    has_post_hooks = bool(after_save_defs or after_commit_defs)
+
+    if has_post_hooks:
+        saved = db.create_no_commit(entity_model, hook_ctx.record, tenant_id=tenant_id)
+    else:
+        saved = db.create(entity_model, hook_ctx.record, tenant_id=tenant_id)
+
+    # Phase 3c: afterSave hooks (same transaction)
+    if after_save_defs and hook_service:
+        hook_ctx.record = saved
+        hook_result = await hook_service.run_hooks("afterSave", after_save_defs, hook_ctx)
+        if hook_result and hook_result.abort:
+            db.rollback()
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "valid": False,
+                    "errors": [{
+                        "message": hook_result.abort,
+                        "code": "HOOK_ABORT",
+                        "severity": "error",
+                    }],
+                },
+            )
+
+    # Phase 3d: Commit
+    if has_post_hooks:
+        db.commit()
+
+    # Phase 4: afterCommit hooks (fire-and-forget)
+    if after_commit_defs and hook_service:
+        hook_ctx.record = saved
+        await hook_service.run_hooks("afterCommit", after_commit_defs, hook_ctx)
+
     return JSONResponse(
         status_code=201,
         content={"data": saved},
@@ -549,8 +624,70 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
                 },
             )
 
-    # Validation passed, persist
-    saved = db.update(entity_model, id, result.record)
+    # Validation passed — run hooks and persist
+    hook_ctx = HookContext(
+        entity_name=entity,
+        operation=Operation.UPDATE,
+        record=result.record,
+        original=original,
+        changes=compute_changes(result.record, original),
+        user_context=user_context,
+    )
+
+    # Phase 3a: beforeSave hooks
+    before_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeSave")
+    if before_save_defs and hook_service:
+        hook_result = await hook_service.run_hooks("beforeSave", before_save_defs, hook_ctx)
+        if hook_result and hook_result.abort:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "valid": False,
+                    "errors": [{
+                        "message": hook_result.abort,
+                        "code": "HOOK_ABORT",
+                        "severity": "error",
+                    }],
+                },
+            )
+
+    # Phase 3b: Persist
+    after_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterSave")
+    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    has_post_hooks = bool(after_save_defs or after_commit_defs)
+
+    if has_post_hooks:
+        saved = db.update_no_commit(entity_model, id, hook_ctx.record)
+    else:
+        saved = db.update(entity_model, id, hook_ctx.record)
+
+    # Phase 3c: afterSave hooks (same transaction)
+    if after_save_defs and hook_service:
+        hook_ctx.record = saved
+        hook_result = await hook_service.run_hooks("afterSave", after_save_defs, hook_ctx)
+        if hook_result and hook_result.abort:
+            db.rollback()
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "valid": False,
+                    "errors": [{
+                        "message": hook_result.abort,
+                        "code": "HOOK_ABORT",
+                        "severity": "error",
+                    }],
+                },
+            )
+
+    # Phase 3d: Commit
+    if has_post_hooks:
+        db.commit()
+
+    # Phase 4: afterCommit hooks (fire-and-forget)
+    if after_commit_defs and hook_service:
+        hook_ctx.record = saved
+        await hook_service.run_hooks("afterCommit", after_commit_defs, hook_ctx)
+
     return JSONResponse(
         status_code=200,
         content={"data": saved},
@@ -616,6 +753,32 @@ async def delete_entity(entity: str, id: str, http_request: Request):
                 },
             )
 
+    # Phase 3a: beforeDelete hooks
+    hook_ctx = HookContext(
+        entity_name=entity,
+        operation=Operation.DELETE,
+        record=record,
+        original=None,
+        changes=None,
+        user_context=user_context,
+    )
+
+    before_delete_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeDelete")
+    if before_delete_defs and hook_service:
+        hook_result = await hook_service.run_hooks("beforeDelete", before_delete_defs, hook_ctx)
+        if hook_result and hook_result.abort:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "valid": False,
+                    "errors": [{
+                        "message": hook_result.abort,
+                        "code": "HOOK_ABORT",
+                        "severity": "error",
+                    }],
+                },
+            )
+
     # Handle relation constraints (restrict/cascade/setNull)
     relation_errors = db.handle_delete_relations(
         entity_model, id, metadata_loader
@@ -633,9 +796,19 @@ async def delete_entity(entity: str, id: str, http_request: Request):
         )
 
     # Delete the record
-    success = db.delete(entity_model, id)
+    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    if after_commit_defs:
+        success = db.delete_no_commit(entity_model, id)
+        db.commit()
+    else:
+        success = db.delete(entity_model, id)
+
     if not success:
         raise HTTPException(404, "Record not found")
+
+    # Phase 4: afterCommit hooks (fire-and-forget)
+    if after_commit_defs and hook_service:
+        await hook_service.run_hooks("afterCommit", after_commit_defs, hook_ctx)
 
     return {"success": True}
 

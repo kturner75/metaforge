@@ -86,6 +86,41 @@ Cross-cutting features (contextFilter, compact mode) work across all implemented
 All 16 styles are implemented. The backend aggregate endpoint supports `dateTrunc` for time bucketing.
 A Category entity with self-referential `parentId` was added for tree-view demonstration.
 
+## Entity Lifecycle Hooks (ADR-0009)
+
+Hooks provide extension points in the entity save/delete lifecycle for logic beyond defaults and validation.
+
+### Hook Points
+- **`beforeSave`**: After validation, before persist. Can modify record or abort.
+- **`afterSave`**: After persist, same transaction. Can update related records or abort (rolls back).
+- **`afterCommit`**: After commit, fire-and-forget. For notifications, external syncs.
+- **`beforeDelete`**: Before delete. Can abort.
+
+### Key Files
+- `backend/src/metaforge/hooks/types.py` — `HookContext`, `HookResult`, `HookDefinition`
+- `backend/src/metaforge/hooks/registry.py` — `HookRegistry` + `@hook` decorator
+- `backend/src/metaforge/hooks/service.py` — `HookService` orchestration
+- `backend/src/metaforge/hooks/__init__.py` — Public API, `register_builtin_hooks()`
+
+### Declaring Hooks in Entity YAML
+```yaml
+hooks:
+  beforeSave:
+    - name: computeContractValue
+      on: [create, update]
+      when: 'amount > 0'
+      description: "Recalculate total value"
+```
+
+### Registering Hook Implementations
+```python
+from metaforge.hooks import hook, HookContext, HookResult
+
+@hook("computeContractValue")
+async def compute_contract_value(ctx: HookContext) -> HookResult:
+    return HookResult(update={"totalValue": computed_total})
+```
+
 ## Navigation & Screens (ADR-0011)
 
 Screens are defined in `metadata/screens/*.yaml` and are the routable entry points for the application.

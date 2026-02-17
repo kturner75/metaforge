@@ -71,3 +71,22 @@ class PersistenceAdapter(Protocol):
         id: str,
         metadata_loader: Any,
     ) -> list[str]: ...
+
+    # Transaction management for hook system
+
+    def create_no_commit(
+        self,
+        entity: EntityModel,
+        data: dict[str, Any],
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def update_no_commit(
+        self, entity: EntityModel, id: str, data: dict[str, Any]
+    ) -> dict[str, Any] | None: ...
+
+    def delete_no_commit(self, entity: EntityModel, id: str) -> bool: ...
+
+    def commit(self) -> None: ...
+
+    def rollback(self) -> None: ...

@@ -69,7 +69,7 @@ view:
 - [ ] Build CLI command to validate metadata locally
 
 ## Backend Entity Framework
-- [ ] Hook system (pre/post save, validation, transform callbacks)
+- [x] Hook system (pre/post save, validation, transform callbacks) — ADR-0009 implemented: `HookRegistry`, `HookService`, `HookContext`/`HookResult` types, `@hook` decorator, metadata-declared hooks with `on:`/`when:` filtering, 4 hook points (beforeSave, afterSave, afterCommit, beforeDelete), transaction management (`create_no_commit`/`update_no_commit`/`delete_no_commit`/`commit`/`rollback`), wired into all CRUD endpoints
 - [ ] Relationship handling enhancements (many-to-many via junction entities)
 
 ## Backend API Layer

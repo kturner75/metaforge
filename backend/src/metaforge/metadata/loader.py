@@ -83,6 +83,16 @@ class DefaultConfig:
 
 
 @dataclass
+class HookConfig:
+    """Hook definition from YAML metadata."""
+
+    name: str
+    on: list[str] = field(default_factory=lambda: ["create", "update"])
+    when: str | None = None
+    description: str = ""
+
+
+@dataclass
 class EntityModel:
     name: str
     display_name: str
@@ -94,6 +104,7 @@ class EntityModel:
     scope: str = "tenant"  # "tenant" or "global"
     validators: list[ValidatorConfig] = field(default_factory=list)
     defaults: list[DefaultConfig] = field(default_factory=list)
+    hooks: dict[str, list[HookConfig]] = field(default_factory=dict)
 
 
 class MetadataLoader:
@@ -212,6 +223,9 @@ class MetadataLoader:
         else:
             abbreviation = abbreviation.upper()
 
+        # Parse hooks
+        hooks = self._resolve_hooks(data.get("hooks", {}))
+
         return EntityModel(
             name=name,
             display_name=data.get("displayName", name),
@@ -223,6 +237,7 @@ class MetadataLoader:
             scope=data.get("scope", "tenant"),
             validators=validators,
             defaults=defaults,
+            hooks=hooks,
         )
 
     def _resolve_field(self, data: dict) -> FieldDefinition:
@@ -267,35 +282,60 @@ class MetadataLoader:
             relation=relation,
         )
 
-    def _resolve_validator(self, data: dict) -> ValidatorConfig:
-        """Convert validator dict to ValidatorConfig."""
-        on = data.get("on", ["create", "update"])
+    def _get_on(self, data: dict, default: list[str] | None = None) -> list[str]:
+        """Extract the 'on' field from a YAML dict.
+
+        PyYAML parses the bare key `on:` as boolean True, so we check
+        both the string key "on" and the boolean key True.
+        """
+        if default is None:
+            default = ["create", "update"]
+        on = data.get("on") or data.get(True, default)
         if isinstance(on, str):
             on = [on]
+        return on
 
+    def _resolve_validator(self, data: dict) -> ValidatorConfig:
+        """Convert validator dict to ValidatorConfig."""
         return ValidatorConfig(
             type=data["type"],
             params=data.get("params", {}),
             message=data.get("message", ""),
             code=data.get("code", ""),
             severity=data.get("severity", "error"),
-            on=on,
+            on=self._get_on(data),
             when=data.get("when"),
         )
 
     def _resolve_default(self, data: dict) -> DefaultConfig:
         """Convert default dict to DefaultConfig."""
-        on = data.get("on", ["create", "update"])
-        if isinstance(on, str):
-            on = [on]
-
         return DefaultConfig(
             field=data["field"],
             value=data.get("value"),
             expression=data.get("expression"),
             policy=data.get("policy", "default"),
             when=data.get("when"),
-            on=on,
+            on=self._get_on(data),
+        )
+
+    def _resolve_hooks(self, data: dict) -> dict[str, list[HookConfig]]:
+        """Convert hooks dict from YAML to HookConfig lists by hook point."""
+        valid_points = ("beforeSave", "afterSave", "afterCommit", "beforeDelete")
+        hooks: dict[str, list[HookConfig]] = {}
+        for point, hook_list in data.items():
+            if point not in valid_points:
+                continue
+            if isinstance(hook_list, list):
+                hooks[point] = [self._resolve_hook(h) for h in hook_list]
+        return hooks
+
+    def _resolve_hook(self, data: dict) -> HookConfig:
+        """Convert hook dict to HookConfig."""
+        return HookConfig(
+            name=data["name"],
+            on=self._get_on(data),
+            when=data.get("when"),
+            description=data.get("description", ""),
         )
 
     def _to_display_name(self, name: str) -> str:

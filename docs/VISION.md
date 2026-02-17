@@ -242,15 +242,15 @@ These principles guide architectural decisions across the framework:
 - Layer 2 (YAML) + Layer 3 (database) config pipeline with precedence resolution
 - JWT auth, role hierarchy, multi-tenant isolation
 - Config-driven rendering with style inference and context propagation
+- Metadata-driven navigation — screens, sections, permission-aware sidebar
+- MCP server — 12 tools exposing metadata, query, CRUD, and config APIs to external agents (FastMCP, stdio/SSE transports)
 
 ### Designed, Not Yet Built
-- Metadata-driven navigation (ADR-0011) — screens, sections, permission-aware sidebar
 - Agent skills framework (ADR-0007) — skill registry, context assembler, output verifier
 - Structured config editor UI — view/edit saved configs without AI
 - Drill-down context passing from summary views to detail views
 
 ### Planned
-- MCP server exposing MetaForge APIs to external agents
 - Embedded AI agent for in-app natural language interaction
 - AI-assisted data analysis with rule-aware reasoning
 - Composable agent workflow definitions

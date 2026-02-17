@@ -96,3 +96,38 @@ and optional view config references (`views.list`, `views.detail`, etc.).
 - **Frontend**: `useNavigation()` hook drives the `Sidebar` (sections with icons), `useScreen()` provides screen config to `EntityCrudScreen`
 - **Auto-generation**: Entities without screen YAML get default screens in an "Entities" section
 - **Backward compatibility**: `routeConfig.ts` serves as final fallback for entity name resolution
+
+## MCP Server
+
+The MCP (Model Context Protocol) server exposes MetaForge's APIs to AI agents (Claude Desktop, etc.).
+It calls the same services as the FastAPI app directly — no HTTP layer.
+
+### Running
+```bash
+python -m metaforge.mcp                  # stdio transport (Claude Desktop)
+python -m metaforge.mcp --transport sse  # SSE transport (web clients)
+metaforge mcp                            # CLI entry point
+```
+
+### Claude Desktop Config
+```json
+{
+  "mcpServers": {
+    "metaforge": {
+      "command": "python",
+      "args": ["-m", "metaforge.mcp"],
+      "cwd": "/path/to/metaforge/backend"
+    }
+  }
+}
+```
+
+### Tools (12 total)
+- **Discovery**: `list_entities`, `get_entity_metadata`
+- **Read**: `query_records`, `get_record`, `aggregate_records`, `list_view_configs`, `get_view_config`
+- **Write**: `create_record`, `update_record`, `delete_record`, `create_view_config`, `update_view_config`
+
+### Key Files
+- `backend/src/metaforge/mcp/bootstrap.py` — Service initialization
+- `backend/src/metaforge/mcp/server.py` — FastMCP tool definitions
+- `backend/src/metaforge/mcp/__main__.py` — Entry point

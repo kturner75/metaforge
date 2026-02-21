@@ -45,12 +45,19 @@ export interface FieldMetadata {
   }
 }
 
+export interface EntityOperations {
+  create: boolean
+  update: boolean
+  delete: boolean
+}
+
 export interface EntityMetadata {
   entity: string
   displayName: string
   pluralName: string
   primaryKey: string
   labelField: string | null
+  operations?: EntityOperations
   fields: FieldMetadata[]
 }
 

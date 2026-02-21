@@ -313,12 +313,28 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
         }
         fields.append(field_meta)
 
+    # Compute entity-level operation permissions for the current user
+    def _can_op(op: str) -> bool:
+        allowed, _ = can_access_entity(
+            entity_model.name, entity_model.scope, op, user_context,
+            auth_required=jwt_service is not None,
+            entity_model=entity_model,
+        )
+        return allowed
+
+    operations = {
+        "create": _can_op("create"),
+        "update": _can_op("update"),
+        "delete": _can_op("delete"),
+    }
+
     return {
         "entity": entity_model.name,
         "displayName": entity_model.display_name,
         "pluralName": entity_model.plural_name,
         "primaryKey": entity_model.primary_key,
         "labelField": entity_model.label_field,
+        "operations": operations,
         "fields": fields,
     }
 

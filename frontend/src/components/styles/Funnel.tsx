@@ -51,6 +51,7 @@ export function Funnel({
   styleConfig,
   isLoading,
   error,
+  onDrilldown,
 }: PresentationProps<FunnelStyleConfig>) {
   if (isLoading) {
     return <div className="funnel-container funnel-loading">Loading...</div>
@@ -106,7 +107,11 @@ export function Funnel({
           const pct = Math.round((values[i] / topVal) * 100)
 
           return (
-            <g key={i}>
+            <g
+              key={i}
+              className={onDrilldown ? 'funnel-bar-clickable' : undefined}
+              onClick={onDrilldown ? () => onDrilldown(stageField, orderedRows[i][stageField]) : undefined}
+            >
               <rect
                 x={x}
                 y={y}

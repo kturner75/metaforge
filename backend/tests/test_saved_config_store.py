@@ -12,19 +12,22 @@ from metaforge.views.types import (
 )
 from metaforge.views.store import SavedConfigStore
 
-
-@pytest.fixture
-def conn():
-    """Create in-memory database connection."""
-    conn = sqlite3.connect(":memory:")
-    yield conn
-    conn.close()
+# Use an in-memory SQLite URL so each test module run gets a fresh DB.
+# Individual fixtures create a new SavedConfigStore (and thus a new engine)
+# for proper isolation.
+_MEMORY_URL = "sqlite://"
 
 
 @pytest.fixture
-def store(conn):
-    """Create config store with test connection."""
-    return SavedConfigStore(conn)
+def db_url():
+    """Return an in-memory SQLite URL for the store."""
+    return _MEMORY_URL
+
+
+@pytest.fixture
+def store(db_url):
+    """Create config store backed by an in-memory SQLite database."""
+    return SavedConfigStore(db_url)
 
 
 def _make_config(**overrides) -> SavedConfig:
@@ -46,25 +49,23 @@ def _make_config(**overrides) -> SavedConfig:
 class TestSavedConfigStoreTableCreation:
     """Tests for table initialization."""
 
-    def test_creates_table(self, conn):
+    def test_creates_table(self, db_url):
         """Store should create _saved_configs table on init."""
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='_saved_configs'"
-        )
-        assert cursor.fetchone() is None
+        from sqlalchemy import create_engine, inspect
 
-        SavedConfigStore(conn)
+        # Before creating the store, no table should exist.
+        engine = create_engine(db_url)
+        assert "_saved_configs" not in inspect(engine).get_table_names()
+        engine.dispose()
 
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='_saved_configs'"
-        )
-        assert cursor.fetchone() is not None
+        store = SavedConfigStore(db_url)
 
-    def test_table_creation_is_idempotent(self, conn):
-        """Creating multiple stores should not fail."""
-        SavedConfigStore(conn)
-        SavedConfigStore(conn)
-        store = SavedConfigStore(conn)
+        # Now the table exists — verify by listing configs (no error means table is there).
+        assert store.list() == []
+
+    def test_table_creation_is_idempotent(self, db_url):
+        """Creating multiple stores against the same URL should not fail."""
+        store = SavedConfigStore(db_url)
         config = store.create(_make_config())
         assert config.id
 

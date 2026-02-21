@@ -63,6 +63,8 @@ export interface PresentationProps<TStyleConfig = Record<string, unknown>> {
   onSort?: (sort: SortField[]) => void
   onPageChange?: (offset: number) => void
   onRowClick?: (row: Record<string, unknown>) => void
+  /** Called when an aggregate segment is clicked (bar, slice, funnel stage). Field + raw value from the groupBy dimension. */
+  onDrilldown?: (field: string, value: unknown) => void
   // Form callbacks (record/form pattern)
   onSubmit?: (data: Record<string, unknown>) => void
   onCancel?: () => void

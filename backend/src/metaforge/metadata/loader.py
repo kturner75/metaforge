@@ -105,6 +105,7 @@ class EntityModel:
     validators: list[ValidatorConfig] = field(default_factory=list)
     defaults: list[DefaultConfig] = field(default_factory=list)
     hooks: dict[str, list[HookConfig]] = field(default_factory=dict)
+    label_field: str | None = None  # Field used as human-readable record label (breadcrumbs, titles)
 
 
 class MetadataLoader:
@@ -226,6 +227,14 @@ class MetadataLoader:
         # Parse hooks
         hooks = self._resolve_hooks(data.get("hooks", {}))
 
+        # Determine label field: explicit YAML value, or auto-detect first 'name'-type field
+        label_field: str | None = data.get("labelField")
+        if not label_field:
+            for f in fields:
+                if f.type == "name":
+                    label_field = f.name
+                    break
+
         return EntityModel(
             name=name,
             display_name=data.get("displayName", name),
@@ -238,6 +247,7 @@ class MetadataLoader:
             validators=validators,
             defaults=defaults,
             hooks=hooks,
+            label_field=label_field,
         )
 
     def _resolve_field(self, data: dict) -> FieldDefinition:

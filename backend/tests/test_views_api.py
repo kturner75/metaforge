@@ -9,6 +9,9 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def client(tmp_path):
     """Create test client with fresh database."""
+    # Remove DATABASE_URL so METAFORGE_DB_PATH can take effect for isolation.
+    saved_db_url = os.environ.pop("DATABASE_URL", None)
+
     os.environ["METAFORGE_DB_PATH"] = str(tmp_path / "test.db")
     os.environ["METAFORGE_DISABLE_AUTH"] = "1"
 
@@ -27,6 +30,8 @@ def client(tmp_path):
             del os.environ["METAFORGE_DB_PATH"]
         if "METAFORGE_DISABLE_AUTH" in os.environ:
             del os.environ["METAFORGE_DISABLE_AUTH"]
+        if saved_db_url is not None:
+            os.environ["DATABASE_URL"] = saved_db_url
 
 
 class TestListConfigs:

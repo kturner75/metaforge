@@ -72,7 +72,6 @@ def create_adapter(config: DatabaseConfig) -> PersistenceAdapter:
         A PersistenceAdapter instance (not yet connected).
 
     Raises:
-        NotImplementedError: For postgresql:// URLs (Phase 5).
         ValueError: For unsupported URL schemes.
     """
     if config.is_sqlite:
@@ -85,9 +84,8 @@ def create_adapter(config: DatabaseConfig) -> PersistenceAdapter:
         return SQLiteAdapter(db_path)
 
     if config.is_postgresql:
-        raise NotImplementedError(
-            "PostgreSQL adapter not yet implemented. "
-            "Use a sqlite:/// URL for now."
-        )
+        from metaforge.persistence.postgresql import PostgreSQLAdapter
+
+        return PostgreSQLAdapter(config.url)
 
     raise ValueError(f"Unsupported database URL scheme: {config.url}")

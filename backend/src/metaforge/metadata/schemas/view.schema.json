@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "$id": "https://metaforge.dev/schemas/view.schema.json",
+  "title": "MetaForge View",
+  "description": "Schema for metadata/views/*.yaml files",
+  "$ref": "#/$defs/viewFile",
+  "$defs": {
+    "viewFile": {
+      "type": "object",
+      "required": ["view"],
+      "additionalProperties": false,
+      "properties": {
+        "view": { "$ref": "#/$defs/viewBody" }
+      }
+    },
+    "viewBody": {
+      "type": "object",
+      "required": ["name", "pattern", "style"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entityName": {
+          "type": "string",
+          "description": "Entity this view targets (required for non-compose patterns)"
+        },
+        "pattern": {
+          "type": "string",
+          "enum": ["query", "aggregate", "record", "compose"]
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "grid", "card-list", "search-list", "kanban", "tree", "calendar",
+            "detail", "form",
+            "kpi-card", "bar-chart", "pie-chart", "summary-grid",
+            "time-series", "funnel",
+            "detail-page", "dashboard"
+          ]
+        },
+        "data": {
+          "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/viewDataConfig"
+        },
+        "styleConfig": {
+          "type": "object",
+          "description": "Style-specific display configuration — structure varies by style",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

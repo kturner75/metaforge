@@ -99,6 +99,7 @@ export function PieChart({
   styleConfig,
   isLoading,
   error,
+  onDrilldown,
 }: PresentationProps<PieChartStyleConfig>) {
   if (isLoading) {
     return <div className="pie-chart-container pie-chart-loading">Loading...</div>
@@ -174,7 +175,8 @@ export function PieChart({
               key={i}
               d={slice.path}
               fill={slice.color}
-              className="pie-chart-slice"
+              className={`pie-chart-slice${onDrilldown ? ' pie-slice-clickable' : ''}`}
+              onClick={onDrilldown ? () => onDrilldown(dimensionField, slice.label) : undefined}
             />
           ))}
           {showPercent &&
@@ -200,7 +202,11 @@ export function PieChart({
         {showLegend && (
           <ul className="pie-chart-legend">
             {slices.map((slice, i) => (
-              <li key={i} className="pie-chart-legend-item">
+              <li
+                key={i}
+                className={`pie-chart-legend-item${onDrilldown ? ' pie-slice-clickable' : ''}`}
+                onClick={onDrilldown ? () => onDrilldown(dimensionField, slice.label) : undefined}
+              >
                 <span
                   className="pie-chart-legend-swatch"
                   style={{ background: slice.color }}

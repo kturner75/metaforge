@@ -91,7 +91,7 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
     acknowledgment_service = WarningAcknowledgmentService(secret_key)
 
     # View configs
-    config_store = SavedConfigStore(db.conn)
+    config_store = SavedConfigStore(db_config.sqlalchemy_url)
     view_loader = ViewConfigLoader(metadata_path / "views")
     view_loader.load_all()
     for cfg in view_loader.list_configs():

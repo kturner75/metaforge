@@ -16,6 +16,9 @@ import metaforge.mcp.server as server_module
 @pytest.fixture
 def services(tmp_path):
     """Initialize MetaForge services with a fresh database."""
+    # Remove DATABASE_URL so METAFORGE_DB_PATH can take effect for isolation.
+    saved_db_url = os.environ.pop("DATABASE_URL", None)
+
     os.environ["METAFORGE_DB_PATH"] = str(tmp_path / "test.db")
 
     original_cwd = Path.cwd()
@@ -35,6 +38,8 @@ def services(tmp_path):
         os.chdir(original_cwd)
         if "METAFORGE_DB_PATH" in os.environ:
             del os.environ["METAFORGE_DB_PATH"]
+        if saved_db_url is not None:
+            os.environ["DATABASE_URL"] = saved_db_url
         for key in ("METAFORGE_MCP_USER_ID", "METAFORGE_MCP_TENANT_ID", "METAFORGE_MCP_ROLE"):
             os.environ.pop(key, None)
 

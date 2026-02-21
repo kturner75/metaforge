@@ -14,14 +14,18 @@
 
 import { useMemo, useCallback } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import type { FilterGroup } from '@/lib/types'
 import { getRouteBySlug } from '@/lib/routeConfig'
-import { useEntityMetadata } from '@/hooks/useApi'
+import { useEntityMetadata, useEntity } from '@/hooks/useApi'
 import { useEntityCrud } from '@/hooks/useEntityCrud'
 import { useResolvedConfig, useSavedConfig } from '@/hooks/useViewConfig'
 import { useScreen } from '@/hooks/useNavigation'
 import { ConfiguredComponent } from './ConfiguredComponent'
 import { WarningDialog } from './WarningDialog'
+import { Breadcrumb } from './Breadcrumb'
+import { getRecordLabel } from '@/lib/entityUtils'
 import type { ConfigBase } from '@/lib/viewTypes'
+import type { BreadcrumbItem } from './Breadcrumb'
 
 type ScreenMode = 'list' | 'create' | 'edit' | 'detail'
 
@@ -68,6 +72,13 @@ export function EntityCrudScreen() {
   const screenType = screen?.type ?? 'entity'
   const baseUrl = `/${slug}`
 
+  // Drilldown filter: passed via location state when navigating from an aggregate component.
+  const location = useLocation()
+  const drilldownFilter = (location.state as { drilldownFilter?: FilterGroup } | null)?.drilldownFilter ?? null
+  const clearDrilldown = useCallback(() => {
+    navigate(baseUrl, { replace: true, state: null })
+  }, [navigate, baseUrl])
+
   const { data: metadata } = useEntityMetadata(entityName)
   const crud = useEntityCrud(entityName, baseUrl)
 
@@ -88,11 +99,15 @@ export function EntityCrudScreen() {
     'grid'
   )
   const listConfig: ConfigBase | null = useMemo(() => {
-    if (screenListConfig) return screenListConfig
-    if (resolvedGridConfig) return resolvedGridConfig
-    if (gridConfigError) return autoConfig(entityName, 'query', 'grid')
-    return null
-  }, [screenListConfig, resolvedGridConfig, gridConfigError, entityName])
+    const base = screenListConfig ?? resolvedGridConfig ?? (gridConfigError ? autoConfig(entityName, 'query', 'grid') : null)
+    if (!base || !drilldownFilter) return base
+    // Merge drilldown filter with any existing filter from the config
+    const existingFilter = base.dataConfig?.filter
+    const mergedFilter: FilterGroup = existingFilter
+      ? { operator: 'and', conditions: [...existingFilter.conditions, ...drilldownFilter.conditions] }
+      : drilldownFilter
+    return { ...base, dataConfig: { ...base.dataConfig, filter: mergedFilter } }
+  }, [screenListConfig, resolvedGridConfig, gridConfigError, entityName, drilldownFilter])
 
   // Form config (create/edit share a config, with recordId injected for edit)
   const { data: screenCreateConfig } = useSavedConfig(screenCreateConfigId)
@@ -175,10 +190,6 @@ export function EntityCrudScreen() {
     navigate(baseUrl)
   }, [crud, navigate, baseUrl])
 
-  const handleBack = useCallback(() => {
-    navigate(baseUrl)
-  }, [navigate, baseUrl])
-
   const handleEdit = useCallback(() => {
     if (id) navigate(`${baseUrl}/${id}/edit`)
   }, [navigate, baseUrl, id])
@@ -186,6 +197,25 @@ export function EntityCrudScreen() {
   const displayName = metadata?.displayName ?? entityName
   const pluralName = metadata?.pluralName ?? `${entityName}s`
   const screenName = screen?.name
+
+  // Fetch the current record (for detail/edit modes) to display its label in the breadcrumb
+  const needsRecord = mode === 'detail' || mode === 'edit'
+  const { data: recordData } = useEntity(entityName, needsRecord ? id : undefined)
+  const recordLabel = getRecordLabel(recordData?.data as Record<string, unknown> | undefined, metadata)
+
+  // Build breadcrumb items based on current screen mode
+  const breadcrumbItems = useMemo((): BreadcrumbItem[] => {
+    const listCrumb = { label: screenName ?? pluralName, href: baseUrl }
+    if (mode === 'list') return [{ label: screenName ?? pluralName }]
+    if (mode === 'create') return [listCrumb, { label: `New ${displayName}` }]
+    if (mode === 'detail') return [listCrumb, { label: recordLabel ?? id ?? '' }]
+    if (mode === 'edit') return [
+      listCrumb,
+      { label: recordLabel ?? id ?? '', href: id ? `${baseUrl}/${id}` : undefined },
+      { label: 'Edit' },
+    ]
+    return [listCrumb]
+  }, [mode, screenName, pluralName, displayName, baseUrl, id, recordLabel])
 
   // For unknown screens (no screen YAML and no routeConfig), show error
   if (!screen && !routeConfig) {
@@ -213,12 +243,27 @@ export function EntityCrudScreen() {
     <>
       {mode === 'list' && (
         <>
+          <Breadcrumb items={breadcrumbItems} />
           <div className="entity-crud-header">
             <h1>{screenName ?? pluralName}</h1>
             <button className="primary" onClick={() => navigate(`${baseUrl}/new`)}>
               New {displayName}
             </button>
           </div>
+          {drilldownFilter && (
+            <div className="drilldown-filter-badge">
+              <span>
+                Filtered by:{' '}
+                {drilldownFilter.conditions.map((c) => {
+                  const cond = c as { field: string; value: unknown }
+                  return `${cond.field} = ${cond.value}`
+                }).join(', ')}
+              </span>
+              <button className="drilldown-filter-clear" onClick={clearDrilldown}>
+                ✕ Clear filter
+              </button>
+            </div>
+          )}
           {listConfig && (
             <ConfiguredComponent config={listConfig} onRowClick={handleRowClick} />
           )}
@@ -230,40 +275,46 @@ export function EntityCrudScreen() {
       )}
 
       {mode === 'create' && (
-        <div className="form-container">
-          <h2>New {displayName}</h2>
-          <ConfiguredComponent
-            config={formConfig()}
-            onSubmit={handleCreateSubmit}
-            onCancel={handleCancel}
-            isSubmitting={crud.isCreating}
-            serverErrors={crud.validationErrors}
-          />
-        </div>
+        <>
+          <Breadcrumb items={breadcrumbItems} />
+          <div className="form-container">
+            <h2>New {displayName}</h2>
+            <ConfiguredComponent
+              config={formConfig()}
+              onSubmit={handleCreateSubmit}
+              onCancel={handleCancel}
+              isSubmitting={crud.isCreating}
+              serverErrors={crud.validationErrors}
+            />
+          </div>
+        </>
       )}
 
       {mode === 'edit' && id && (
-        <div className="form-container">
-          <div className="form-header">
-            <h2>Edit {displayName}</h2>
-            <button className="danger" onClick={() => crud.handleDelete(id)}>
-              Delete
-            </button>
+        <>
+          <Breadcrumb items={breadcrumbItems} />
+          <div className="form-container">
+            <div className="form-header">
+              <h2>Edit {displayName}</h2>
+              <button className="danger" onClick={() => crud.handleDelete(id)}>
+                Delete
+              </button>
+            </div>
+            <ConfiguredComponent
+              config={formConfig(id)}
+              onSubmit={handleUpdateSubmit}
+              onCancel={handleCancel}
+              isSubmitting={crud.isUpdating}
+              serverErrors={crud.validationErrors}
+            />
           </div>
-          <ConfiguredComponent
-            config={formConfig(id)}
-            onSubmit={handleUpdateSubmit}
-            onCancel={handleCancel}
-            isSubmitting={crud.isUpdating}
-            serverErrors={crud.validationErrors}
-          />
-        </div>
+        </>
       )}
 
       {mode === 'detail' && id && (
         <div className="detail-view-container">
           <div className="detail-view-header">
-            <button onClick={handleBack}>&larr; Back to list</button>
+            <Breadcrumb items={breadcrumbItems} />
             <button onClick={handleEdit}>Edit</button>
           </div>
           <ConfiguredComponent config={detailConfig(id)} />

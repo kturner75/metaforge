@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "$id": "https://metaforge.dev/schemas/block.schema.json",
+  "title": "MetaForge Block",
+  "description": "Schema for metadata/blocks/*.yaml files",
+  "$ref": "#/$defs/blockFile",
+  "$defs": {
+    "blockFile": {
+      "type": "object",
+      "required": ["block", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string",
+          "minLength": 1,
+          "description": "PascalCase block name (e.g. AuditTrail, AddressBlock)"
+        },
+        "description": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/fieldDef" }
+        }
+      }
+    }
+  }
+}

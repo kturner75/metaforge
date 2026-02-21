@@ -9,6 +9,11 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def client(tmp_path):
     """Create test client with fresh in-memory database."""
+    # Remove DATABASE_URL so METAFORGE_DB_PATH can take effect for isolation.
+    # Integration tests always use a per-test SQLite DB regardless of the
+    # DATABASE_URL that may be set in the environment for PG live testing.
+    saved_db_url = os.environ.pop("DATABASE_URL", None)
+
     # Set up environment to use temporary directory for db
     os.environ["METAFORGE_DB_PATH"] = str(tmp_path / "test.db")
     # Disable auth for these tests (tests without authentication)
@@ -31,6 +36,8 @@ def client(tmp_path):
             del os.environ["METAFORGE_DB_PATH"]
         if "METAFORGE_DISABLE_AUTH" in os.environ:
             del os.environ["METAFORGE_DISABLE_AUTH"]
+        if saved_db_url is not None:
+            os.environ["DATABASE_URL"] = saved_db_url
 
 
 def create_company(client, name="Test Company"):

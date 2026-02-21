@@ -6,6 +6,7 @@ import pytest
 
 from metaforge.persistence.adapter import PersistenceAdapter
 from metaforge.persistence.config import DatabaseConfig, create_adapter
+from metaforge.persistence.postgresql import PostgreSQLAdapter
 from metaforge.persistence.sqlite import SQLiteAdapter
 
 
@@ -109,10 +110,10 @@ class TestCreateAdapter:
         adapter = create_adapter(config)
         assert isinstance(adapter, SQLiteAdapter)
 
-    def test_create_postgresql_raises(self):
+    def test_create_postgresql_returns_adapter(self):
         config = DatabaseConfig(url="postgresql://user:pass@localhost/db")
-        with pytest.raises(NotImplementedError, match="PostgreSQL"):
-            create_adapter(config)
+        adapter = create_adapter(config)
+        assert isinstance(adapter, PostgreSQLAdapter)
 
     def test_create_unsupported_raises(self):
         config = DatabaseConfig(url="mysql://localhost/db")

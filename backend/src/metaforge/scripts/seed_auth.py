@@ -34,7 +34,8 @@ def _find_user_by_email(db, user_entity, email: str):
         filter={"conditions": [{"field": "email", "operator": "eq", "value": email}]},
         limit=1,
     )
-    return result.get("data", [None])[0]
+    data = result.get("data", [])
+    return data[0] if data else None
 
 
 def _ensure_membership(db, membership_entity, user_id: str, tenant_id: str, role: str, reset: bool):
@@ -48,7 +49,8 @@ def _ensure_membership(db, membership_entity, user_id: str, tenant_id: str, role
         },
         limit=1,
     )
-    membership = membership_result.get("data", [None])[0]
+    data = membership_result.get("data", [])
+    membership = data[0] if data else None
     if membership:
         if reset and membership.get("role") != role:
             db.update(membership_entity, membership["id"], {"role": role})
@@ -114,18 +116,22 @@ def main():
     metadata_path = base_path / "metadata"
     db_path = base_path / "data" / "metaforge.db"
 
-    print(f"Database: {db_path}")
+    # Resolve database URL: DATABASE_URL env var takes precedence over default SQLite path
+    import os
+    db_url = os.environ.get("DATABASE_URL") or f"sqlite:///{db_path}"
+    print(f"Database: {db_url}")
     print(f"Metadata: {metadata_path}")
 
-    # Ensure data directory exists
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    # Ensure data directory exists (only relevant for SQLite)
+    if db_url.startswith("sqlite"):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load metadata
     loader = MetadataLoader(metadata_path)
     loader.load_all()
 
     # Connect to database
-    db_config = DatabaseConfig(url=f"sqlite:///{db_path}")
+    db_config = DatabaseConfig(url=db_url)
     db = create_adapter(db_config)
     db.connect()
 

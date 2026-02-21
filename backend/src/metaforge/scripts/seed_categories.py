@@ -55,15 +55,18 @@ def main():
     metadata_path = base_path / "metadata"
     db_path = base_path / "data" / "metaforge.db"
 
-    print(f"Database: {db_path}")
+    import os
+    db_url = os.environ.get("DATABASE_URL") or f"sqlite:///{db_path}"
+    print(f"Database: {db_url}")
     print(f"Metadata: {metadata_path}")
 
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if db_url.startswith("sqlite"):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
     loader = MetadataLoader(metadata_path)
     loader.load_all()
 
-    db_config = DatabaseConfig(url=f"sqlite:///{db_path}")
+    db_config = DatabaseConfig(url=db_url)
     db = create_adapter(db_config)
     db.connect()
 

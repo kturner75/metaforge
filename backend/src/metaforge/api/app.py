@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from metaforge.metadata.loader import MetadataLoader
+from metaforge.metadata.validator import validate_metadata_dir
 from metaforge.persistence import PersistenceAdapter, DatabaseConfig, create_adapter
 from metaforge.core.types import get_field_type
 from metaforge.validation import (
@@ -75,6 +76,25 @@ async def lifespan(app: FastAPI):
         base_path = cwd
     metadata_path = base_path / "metadata"
 
+    # Validate metadata YAML files against JSON Schemas (warn on errors, don't block startup)
+    schema_issues = validate_metadata_dir(metadata_path)
+    if schema_issues:
+        import logging
+        _val_log = logging.getLogger(__name__)
+        error_count = sum(1 for i in schema_issues if i.severity == "error")
+        warn_count = sum(1 for i in schema_issues if i.severity == "warning")
+        for issue in schema_issues:
+            if issue.severity == "error":
+                _val_log.error("Metadata schema error: %s", issue)
+            else:
+                _val_log.warning("Metadata schema warning: %s", issue)
+        _val_log.warning(
+            "Metadata validation: %d error(s), %d warning(s). "
+            "Run 'metaforge metadata validate' for details.",
+            error_count,
+            warn_count,
+        )
+
     # Initialize metadata loader
     metadata_loader = MetadataLoader(metadata_path)
     metadata_loader.load_all()
@@ -104,7 +124,7 @@ async def lifespan(app: FastAPI):
     hook_service = HookService()
 
     # Initialize view configuration system
-    config_store = SavedConfigStore(db.conn)
+    config_store = SavedConfigStore(db_config.sqlalchemy_url)
     view_loader = ViewConfigLoader(metadata_path / "views")
     view_loader.load_all()
     for cfg in view_loader.list_configs():
@@ -291,6 +311,7 @@ async def get_entity_metadata(entity: str) -> dict[str, Any]:
         "displayName": entity_model.display_name,
         "pluralName": entity_model.plural_name,
         "primaryKey": entity_model.primary_key,
+        "labelField": entity_model.label_field,
         "fields": fields,
     }
 

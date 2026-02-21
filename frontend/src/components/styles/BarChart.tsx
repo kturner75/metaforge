@@ -52,6 +52,7 @@ export function BarChart({
   styleConfig,
   isLoading,
   error,
+  onDrilldown,
 }: PresentationProps<BarChartStyleConfig>) {
   if (isLoading) {
     return <div className="bar-chart-container bar-chart-loading">Loading...</div>
@@ -158,7 +159,8 @@ export function BarChart({
                   height={barH}
                   fill={color}
                   rx={2}
-                  className="bar-chart-bar"
+                  className={`bar-chart-bar${onDrilldown ? ' bar-chart-bar-clickable' : ''}`}
+                  onClick={onDrilldown ? () => onDrilldown(dimensionField, rows[i][dimensionField]) : undefined}
                 />
                 {showValues && (
                   <text
@@ -230,7 +232,8 @@ export function BarChart({
                 height={barH}
                 fill={color}
                 rx={2}
-                className="bar-chart-bar"
+                className={`bar-chart-bar${onDrilldown ? ' bar-chart-bar-clickable' : ''}`}
+                onClick={onDrilldown ? () => onDrilldown(dimensionField, rows[i][dimensionField]) : undefined}
               />
               {showValues && (
                 <text

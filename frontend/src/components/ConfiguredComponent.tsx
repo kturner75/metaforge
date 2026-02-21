@@ -47,6 +47,18 @@ export function ConfiguredComponent({ config, parentContext, compact, onRowClick
     [entityName, navigate]
   )
   const onRowClick = onRowClickProp ?? (config.pattern === 'query' ? defaultRowClick : undefined)
+
+  // Drilldown handler for aggregate components: navigate to the entity list filtered by the clicked dimension.
+  const onDrilldown = useCallback(
+    (field: string, value: unknown) => {
+      if (!entityName) return
+      const route = getRouteByEntity(entityName)
+      if (!route) return
+      const drilldownFilter = { operator: 'and' as const, conditions: [{ field, operator: 'eq' as const, value }] }
+      navigate(`/${route.slug}`, { state: { drilldownFilter } })
+    },
+    [entityName, navigate]
+  )
   const registration = useMemo(
     () => getStyleOrFallback(config.pattern, config.style),
     [config.pattern, config.style]
@@ -140,6 +152,7 @@ export function ConfiguredComponent({ config, parentContext, compact, onRowClick
       onSort={handleSort}
       onPageChange={handlePageChange}
       onRowClick={onRowClick}
+      onDrilldown={isAggregate ? onDrilldown : undefined}
       onSubmit={onSubmit}
       onCancel={onCancel}
       isSubmitting={isSubmitting}

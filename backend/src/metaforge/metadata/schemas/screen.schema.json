@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "$id": "https://metaforge.dev/schemas/screen.schema.json",
+  "title": "MetaForge Screen",
+  "description": "Schema for metadata/screens/*.yaml files",
+  "$ref": "#/$defs/screenFile",
+  "$defs": {
+    "screenFile": {
+      "type": "object",
+      "required": ["screen"],
+      "additionalProperties": false,
+      "properties": {
+        "screen": { "$ref": "#/$defs/screenBody" }
+      }
+    },
+    "screenBody": {
+      "type": "object",
+      "required": ["name", "slug", "nav"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "URL-safe identifier using lowercase letters, digits and hyphens"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["entity", "dashboard", "admin", "custom"]
+        },
+        "entityName": {
+          "type": "string",
+          "description": "Entity this screen targets (required for type: entity)"
+        },
+        "nav": {
+          "type": "object",
+          "required": ["section"],
+          "additionalProperties": false,
+          "properties": {
+            "section": { "type": "string", "minLength": 1 },
+            "order": { "type": "integer", "minimum": 0 },
+            "icon": { "type": "string" },
+            "hidden": { "type": "boolean" }
+          }
+        },
+        "views": {
+          "type": "object",
+          "description": "Named view references (e.g. list, detail, create, edit, default)",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^yaml:[a-z0-9_-]+$",
+            "description": "View reference in the form 'yaml:<view-slug>'"
+          }
+        }
+      }
+    }
+  }
+}

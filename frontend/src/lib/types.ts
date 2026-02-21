@@ -44,6 +44,7 @@ export interface EntityMetadata {
   displayName: string
   pluralName: string
   primaryKey: string
+  labelField: string | null
   fields: FieldMetadata[]
 }
 

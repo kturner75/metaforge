@@ -1,6 +1,7 @@
 entity: Contact
 displayName: Contact
 pluralName: Contacts
+labelField: fullName
 
 includes:
   - block: AuditTrail

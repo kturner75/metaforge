@@ -10,7 +10,7 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 ## Inbox (Triage Needed)
 - [x] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav (sections, ordering, icons, admin grouping) — ADR-0011 implemented: `metadata/screens/*.yaml` loader, `GET /api/navigation` + `GET /api/screens/:slug`, sectioned sidebar with icons, permission-aware filtering, auto-generation for uncovered entities
 - [x] Screen as a first-class concept: routable pages beyond entity CRUD (admin screens, dashboards, entity overview pages) — `ScreenConfig` types with entity/dashboard/admin/custom types, `EntityCrudScreen` handles dashboard-type screens, screen-defined view config IDs
-- [ ] Breadcrumb component: context-aware navigation trail (e.g., Company → Contact detail shows "Back to Company" instead of "Back to list")
+- [x] Breadcrumb component: context-aware navigation trail (e.g., Company → Contact detail shows "Back to Company" instead of "Back to list") — `Breadcrumb.tsx` component + `entityUtils.ts` helpers, wired into `EntityCrudScreen` with CSS in `App.css`
 
 ## Design Decisions (Captured)
 
@@ -64,9 +64,9 @@ view:
 
 ## Metadata Core (Source of Truth)
 - [ ] Define metadata schema versioning strategy
-- [ ] Add JSON Schema validation for `metadata/` YAML files
+- [x] Add JSON Schema validation for `metadata/` YAML files — 5 JSON Schemas (`_defs`, entity, block, view, screen) using Draft 2020-12 with cross-schema `$ref` via `referencing` registry; `metadata/validator.py` public API (`validate_yaml_file`, `validate_metadata_dir`) with PyYAML `on:` bool-key preprocessing; `metaforge metadata validate` CLI enhanced with `--strict` and `--path` flags; startup validation in `api/app.py` lifespan (warns but doesn't block); 35 tests in `test_metadata_validator.py`
 - [ ] Add metadata migration mechanism (handle schema changes across versions)
-- [ ] Build CLI command to validate metadata locally
+- [ ] Build CLI scaffolding for new entities/fields (`metaforge new entity Foo`)
 
 ## Backend Entity Framework
 - [x] Hook system (pre/post save, validation, transform callbacks) — ADR-0009 implemented: `HookRegistry`, `HookService`, `HookContext`/`HookResult` types, `@hook` decorator, metadata-declared hooks with `on:`/`when:` filtering, 4 hook points (beforeSave, afterSave, afterCommit, beforeDelete), transaction management (`create_no_commit`/`update_no_commit`/`delete_no_commit`/`commit`/`rollback`), wired into all CRUD endpoints
@@ -90,9 +90,9 @@ view:
 - [ ] Shared error codes/messages mapping
 
 ## Persistence & Migrations
-- [ ] Set up Alembic for migration management
-- [ ] Migration diff tool (metadata changes -> SQL migration)
-- [ ] PostgreSQL adapter (SQLAlchemy-based, parallel to SQLiteAdapter)
+- [x] Set up Alembic for migration management — `cli/migrate_cmd.py` with `init`, `generate`, `apply`, `rollback`, `stamp`, `status` commands; programmatic Alembic runner in `migrations/runner.py`; no static `alembic.ini` required
+- [x] Migration diff tool (metadata changes -> SQL migration) — snapshot-based diff engine in `migrations/diff.py` + `snapshot.py`; detects new/removed entities and fields, type changes, NOT NULL constraint changes; generates Alembic-compatible `.py` files; 71 tests covering all paths
+- [x] PostgreSQL adapter — `PostgreSQLAdapter` using psycopg v3; `SequenceService` dialect param (`INSERT … ON CONFLICT DO UPDATE`); `SavedConfigStore` refactored to SQLAlchemy Core (dialect-neutral URL-based); wired in `create_adapter()`, `api/app.py`, `mcp/bootstrap.py`; 5 protocol conformance tests always run + 12 live CRUD tests skip without `DATABASE_URL=postgresql://…`
 - [ ] SQLite dev / Postgres prod parity checks
 
 ## Auth & Permissions
@@ -140,7 +140,7 @@ view:
 - [x] Context propagation: `parentContext={{ recordId }}` flows to child `ConfiguredComponent`, injects `contextFilter` as `eq` condition on foreign-key field
 
 ### Cross-Cutting
-- [ ] DrillDown: context-passing from summary views to detail views
+- [x] DrillDown: context-passing from summary views to detail views — clicking bar/pie/funnel chart segments navigates to the entity list pre-filtered by that dimension; dismissible filter badge shown in list view; location state preserves clean URLs
 - [ ] Structured config editor UI (view/edit saved configs without AI)
 
 ## Agent Skills (ADR-0007)

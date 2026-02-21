@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "$id": "https://metaforge.dev/schemas/_defs.schema.json",
+  "title": "MetaForge shared definitions",
+  "description": "Shared $defs referenced by entity, block, view, and screen schemas",
+  "$defs": {
+    "fieldType": {
+      "type": "string",
+      "enum": [
+        "id", "uuid",
+        "string", "name", "text", "description",
+        "email", "phone", "url",
+        "picklist", "multi_picklist",
+        "checkbox", "boolean",
+        "date", "datetime",
+        "number", "currency", "percent",
+        "relation",
+        "address",
+        "attachment"
+      ]
+    },
+    "picklistOption": {
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "autoValue": {
+      "description": "Expression or keyword for auto-setting a field value",
+      "type": "string"
+    },
+    "onDeleteValue": {
+      "type": "string",
+      "enum": ["cascade", "setNull", "restrict"]
+    },
+    "lifecycleOn": {
+      "description": "Lifecycle event triggers (YAML 'on:' key — preprocessed from boolean True)",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["create", "update", "delete"]
+      },
+      "minItems": 1
+    },
+    "validationRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "pattern": { "type": "string" },
+        "unique": { "type": "boolean" }
+      }
+    },
+    "relationConfig": {
+      "type": "object",
+      "required": ["entity"],
+      "additionalProperties": false,
+      "properties": {
+        "entity": { "type": "string" },
+        "displayField": { "type": "string" },
+        "onDelete": { "$ref": "#/$defs/onDeleteValue" }
+      }
+    },
+    "fieldDef": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        },
+        "type": { "$ref": "#/$defs/fieldType" },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "primaryKey": { "type": "boolean" },
+        "readOnly": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "auto": { "$ref": "#/$defs/autoValue" },
+        "default": {},
+        "validation": { "$ref": "#/$defs/validationRules" },
+        "relation": { "$ref": "#/$defs/relationConfig" },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/picklistOption" }
+        }
+      }
+    },
+    "sortSpec": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "direction": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "default": "asc"
+        }
+      }
+    },
+    "measureSpec": {
+      "type": "object",
+      "required": ["field", "aggregate"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "aggregate": {
+          "type": "string",
+          "enum": ["count", "sum", "avg", "min", "max"]
+        },
+        "label": { "type": "string" }
+      }
+    },
+    "dataTruncMap": {
+      "description": "Maps field names to truncation granularity for date bucketing",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["year", "quarter", "month", "week", "day", "hour"]
+      }
+    },
+    "filterSpec": {
+      "description": "Simple field=value filter map",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "viewDataConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sort": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sortSpec" }
+        },
+        "pageSize": { "type": "integer", "minimum": 1 },
+        "groupBy": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "measures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/measureSpec" }
+        },
+        "dateTrunc": { "$ref": "#/$defs/dataTruncMap" },
+        "contextFilter": { "type": "object", "additionalProperties": true },
+        "filter": { "$ref": "#/$defs/filterSpec" }
+      }
+    },
+    "hookDefinition": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "on": { "$ref": "#/$defs/lifecycleOn" },
+        "when": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "validatorDef": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "params": { "type": "object", "additionalProperties": true },
+        "message": { "type": "string" },
+        "code": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"]
+        }
+      }
+    },
+    "defaultsDef": {
+      "type": "object",
+      "required": ["field", "expression"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "expression": { "type": "string" },
+        "policy": {
+          "type": "string",
+          "enum": ["overwrite", "once", "if_null"]
+        },
+        "on": { "$ref": "#/$defs/lifecycleOn" }
+      }
+    },
+    "includesDef": {
+      "type": "object",
+      "required": ["block"],
+      "additionalProperties": false,
+      "properties": {
+        "block": { "type": "string" }
+      }
+    }
+  }
+}

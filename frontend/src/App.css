@@ -142,6 +142,48 @@ body {
   color: white;
 }
 
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.breadcrumb-separator {
+  color: var(--border);
+  user-select: none;
+  font-size: 12px;
+}
+
+.breadcrumb-link {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-current {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.breadcrumb-inactive {
+  color: var(--muted);
+}
+
 /* Entity CRUD header */
 .entity-crud-header {
   display: flex;
@@ -937,6 +979,11 @@ button.ghost {
 .detail-view-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+}
+
+.detail-view-header .breadcrumb {
+  margin-bottom: 0;
 }
 
 .detail-view-header button {
@@ -2294,4 +2341,61 @@ button.ghost {
 
 .funnel-error {
   color: var(--danger);
+}
+
+/* ================================
+   Drilldown: clickable chart elements
+   ================================ */
+
+.bar-chart-bar-clickable {
+  cursor: pointer;
+}
+.bar-chart-bar-clickable:hover {
+  opacity: 0.75;
+}
+
+.pie-slice-clickable {
+  cursor: pointer;
+}
+.pie-slice-clickable:hover {
+  opacity: 0.8;
+}
+
+.funnel-bar-clickable {
+  cursor: pointer;
+}
+.funnel-bar-clickable:hover rect {
+  opacity: 0.8;
+}
+
+/* ================================
+   Drilldown filter badge
+   ================================ */
+
+.drilldown-filter-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #eaf0f9;
+  border: 1px solid #c1d3eb;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--brand-strong);
+}
+
+.drilldown-filter-clear {
+  background: none;
+  border: 1px solid var(--brand);
+  color: var(--brand);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.drilldown-filter-clear:hover {
+  background: var(--brand);
+  color: #fff;
 }

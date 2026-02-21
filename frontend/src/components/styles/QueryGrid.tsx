@@ -51,12 +51,13 @@ export function QueryGrid({
           const fieldMeta = metadata.fields.find((f) => f.name === col.field)
           return fieldMeta ? { field: fieldMeta, column: col } : null
         })
-        .filter(Boolean) as { field: FieldMetadata; column: GridColumn }[]
+        .filter((item): item is { field: FieldMetadata; column: GridColumn } => item !== null)
+        .filter(({ field }) => field.access?.read !== false)
     }
 
-    // Fallback: all fields except primary key
+    // Fallback: all fields except primary key and fields the user cannot read
     return metadata.fields
-      .filter((f) => !f.primaryKey)
+      .filter((f) => !f.primaryKey && f.access?.read !== false)
       .map((f) => ({ field: f, column: { field: f.name } as GridColumn }))
   }, [metadata, styleConfig.columns])
 

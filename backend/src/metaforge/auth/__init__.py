@@ -13,7 +13,13 @@ from metaforge.auth.dependencies import (
     require_role,
     require_authenticated,
 )
-from metaforge.auth.permissions import can_access_entity, ROLE_HIERARCHY
+from metaforge.auth.permissions import (
+    can_access_entity,
+    apply_field_read_policy,
+    apply_field_write_policy,
+    get_field_access,
+    ROLE_HIERARCHY,
+)
 
 __all__ = [
     "AuthenticatedUser",
@@ -27,5 +33,8 @@ __all__ = [
     "require_role",
     "require_authenticated",
     "can_access_entity",
+    "apply_field_read_policy",
+    "apply_field_write_policy",
+    "get_field_access",
     "ROLE_HIERARCHY",
 ]

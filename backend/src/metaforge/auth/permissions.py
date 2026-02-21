@@ -1,6 +1,13 @@
 """Permission checking for entity access."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from metaforge.validation import UserContext
+
+if TYPE_CHECKING:
+    from metaforge.metadata.loader import EntityModel, FieldDefinition
 
 
 # Role hierarchy - higher number = more permissions
@@ -16,12 +23,25 @@ ROLE_HIERARCHY = {
 GLOBAL_ENTITIES = {"User", "Tenant", "TenantMembership"}
 
 
+def _role_level(role: str | None) -> int:
+    """Return numeric level for a role name, 0 if unknown/None."""
+    return ROLE_HIERARCHY.get(role or "", 0)
+
+
+def _user_role_level(user_context: UserContext | None) -> int:
+    """Return the numeric role level for the current user."""
+    if not user_context or not user_context.roles:
+        return 0
+    return _role_level(user_context.roles[0])
+
+
 def can_access_entity(
     entity_name: str,
     entity_scope: str,
     operation: str,
     user_context: UserContext | None,
     auth_required: bool = True,
+    entity_model: "EntityModel | None" = None,
 ) -> tuple[bool, str | None]:
     """Check if the user can perform an operation on an entity.
 
@@ -31,6 +51,7 @@ def can_access_entity(
         operation: "read", "create", "update", or "delete"
         user_context: The authenticated user context (None if unauthenticated)
         auth_required: Whether authentication is required (False allows unauthenticated access)
+        entity_model: Optional entity model for per-entity permission overrides
 
     Returns:
         Tuple of (allowed, error_message). error_message is None if allowed.
@@ -43,40 +64,35 @@ def can_access_entity(
                 return True, None
         return False, "Authentication required"
 
-    user_role = user_context.roles[0] if user_context.roles else None
-    role_level = ROLE_HIERARCHY.get(user_role, 0) if user_role else 0
+    user_level = _user_role_level(user_context)
 
     # Handle global entities (User, Tenant, TenantMembership)
     if entity_scope == "global" or entity_name in GLOBAL_ENTITIES:
         if operation == "read":
-            # Anyone authenticated can read global entities
-            # (they'll be filtered appropriately)
             return True, None
         else:
-            # Write operations require admin role
-            if role_level < ROLE_HIERARCHY["admin"]:
+            if user_level < ROLE_HIERARCHY["admin"]:
                 return False, f"Admin role required to {operation} {entity_name}"
             return True, None
 
     # Handle tenant-scoped entities
-    # Must have an active tenant
     if not user_context.tenant_id:
         return False, "No active tenant. Please select a tenant."
 
-    # Check operation-specific permissions
-    if operation == "read":
-        # All roles can read
-        return True, None
-    elif operation in ("create", "update"):
-        # readonly cannot create/update
-        if role_level < ROLE_HIERARCHY["user"]:
-            return False, f"User role or higher required to {operation} records"
-        return True, None
-    elif operation == "delete":
-        # Only manager+ can delete
-        if role_level < ROLE_HIERARCHY["manager"]:
-            return False, "Manager role or higher required to delete records"
-        return True, None
+    # Determine minimum role thresholds — use entity permissions if declared, else defaults
+    perms = entity_model.permissions if entity_model else None
+    thresholds: dict[str, str] = {
+        "read": perms.read if perms else "readonly",
+        "create": perms.create if perms else "user",
+        "update": perms.update if perms else "user",
+        "delete": perms.delete if perms else "manager",
+    }
+
+    required_role = thresholds.get(operation, "readonly")
+    required_level = _role_level(required_role)
+
+    if user_level < required_level:
+        return False, f"{required_role.capitalize()} role or higher required to {operation} records"
 
     return True, None
 
@@ -125,3 +141,114 @@ def get_effective_tenant_filter(
         return {"tenantId": {"eq": "__no_tenant__"}}
 
     return {"tenantId": {"eq": user_context.tenant_id}}
+
+
+def get_field_access(
+    field_def: "FieldDefinition",
+    user_context: UserContext | None,
+    entity_model: "EntityModel | None" = None,
+) -> dict[str, bool]:
+    """Return the effective read/write access for a field given the user's role.
+
+    Args:
+        field_def: The field definition
+        user_context: The authenticated user context
+        entity_model: Optional entity model for entity-level field policies
+
+    Returns:
+        {"read": bool, "write": bool}
+    """
+    user_level = _user_role_level(user_context)
+
+    # Look up field policy: entity-level policies take precedence over field-level
+    field_name = field_def.name
+    field_policy = None
+
+    if entity_model and entity_model.permissions:
+        field_policy = entity_model.permissions.field_policies.get(field_name)
+
+    if field_policy is None and field_def.permissions:
+        field_policy = field_def.permissions
+
+    if field_policy is None:
+        # No policy — full access (subject to readOnly flag)
+        return {
+            "read": True,
+            "write": not field_def.read_only and not field_def.primary_key,
+        }
+
+    can_read = user_level >= _role_level(field_policy.read)
+    can_write = (
+        can_read
+        and not field_def.read_only
+        and not field_def.primary_key
+        and user_level >= _role_level(field_policy.write)
+    )
+    return {"read": can_read, "write": can_write}
+
+
+def apply_field_read_policy(
+    record: dict,
+    entity_model: "EntityModel | None",
+    user_context: UserContext | None,
+) -> dict:
+    """Strip fields the user cannot read from a record dict.
+
+    Args:
+        record: The raw record dict from the database
+        entity_model: The entity model for field policy lookup
+        user_context: The authenticated user context
+
+    Returns:
+        A copy of the record with restricted fields removed
+    """
+    if entity_model is None:
+        return record
+
+    perms = entity_model.permissions
+    if perms is None or not perms.field_policies:
+        return record
+
+    user_level = _user_role_level(user_context)
+    result = dict(record)
+
+    for field_name, policy in perms.field_policies.items():
+        if user_level < _role_level(policy.read):
+            result.pop(field_name, None)
+            # Also strip any hydrated display value
+            result.pop(f"{field_name}_display", None)
+
+    return result
+
+
+def apply_field_write_policy(
+    data: dict,
+    entity_model: "EntityModel | None",
+    user_context: UserContext | None,
+) -> dict:
+    """Strip fields the user cannot write from an incoming payload.
+
+    Args:
+        data: The write payload from the client
+        entity_model: The entity model for field policy lookup
+        user_context: The authenticated user context
+
+    Returns:
+        A copy of the data with write-restricted fields removed
+    """
+    if entity_model is None:
+        return data
+
+    perms = entity_model.permissions
+    if perms is None or not perms.field_policies:
+        return data
+
+    user_level = _user_role_level(user_context)
+    result = dict(data)
+
+    for field_name, policy in perms.field_policies.items():
+        # Cannot write if below write threshold OR below read threshold
+        if user_level < _role_level(policy.read) or user_level < _role_level(policy.write):
+            result.pop(field_name, None)
+
+    return result

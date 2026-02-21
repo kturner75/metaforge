@@ -19,12 +19,18 @@ export interface FieldUIConfig {
   mode?: string
 }
 
+export interface FieldAccess {
+  read: boolean
+  write: boolean
+}
+
 export interface FieldMetadata {
   name: string
   displayName: string
   type: string
   primaryKey?: boolean
   readOnly?: boolean
+  access?: FieldAccess
   validation?: ValidationRules
   options?: { value: string; label: string }[]
   relation?: {

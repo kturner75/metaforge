@@ -69,6 +69,50 @@
         "onDelete": { "$ref": "#/$defs/onDeleteValue" }
       }
     },
+    "roleLevel": {
+      "description": "Minimum role required for an access operation",
+      "type": "string",
+      "enum": ["readonly", "user", "manager", "admin"]
+    },
+    "fieldPermissionsDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "read": { "$ref": "#/$defs/roleLevel" },
+        "write": { "$ref": "#/$defs/roleLevel" }
+      }
+    },
+    "fieldPolicyDef": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "read": { "$ref": "#/$defs/roleLevel" },
+        "write": { "$ref": "#/$defs/roleLevel" }
+      }
+    },
+    "entityAccessDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "read": { "$ref": "#/$defs/roleLevel" },
+        "create": { "$ref": "#/$defs/roleLevel" },
+        "update": { "$ref": "#/$defs/roleLevel" },
+        "delete": { "$ref": "#/$defs/roleLevel" }
+      }
+    },
+    "entityPermissionsDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "access": { "$ref": "#/$defs/entityAccessDef" },
+        "fieldPolicies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fieldPolicyDef" }
+        }
+      }
+    },
     "fieldDef": {
       "type": "object",
       "required": ["name", "type"],
@@ -91,7 +135,8 @@
         "options": {
           "type": "array",
           "items": { "$ref": "#/$defs/picklistOption" }
-        }
+        },
+        "permissions": { "$ref": "#/$defs/fieldPermissionsDef" }
       }
     },
     "sortSpec": {

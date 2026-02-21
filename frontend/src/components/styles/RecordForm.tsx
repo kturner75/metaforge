@@ -35,6 +35,7 @@ function isAutoField(field: FieldMetadata): boolean {
 }
 
 function isEditableField(field: FieldMetadata): boolean {
+  if (field.access?.write === false) return false
   return !field.readOnly && !field.primaryKey
 }
 

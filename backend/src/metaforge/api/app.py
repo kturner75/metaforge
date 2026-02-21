@@ -35,6 +35,9 @@ from metaforge.auth import (
     PasswordService,
     get_user_context,
     can_access_entity,
+    apply_field_read_policy,
+    apply_field_write_policy,
+    get_field_access,
 )
 from metaforge.auth.endpoints import create_auth_router
 from metaforge.views import SavedConfigStore, ViewConfigLoader
@@ -252,7 +255,7 @@ async def list_entities() -> dict[str, Any]:
 
 
 @app.get("/api/metadata/{entity}")
-async def get_entity_metadata(entity: str) -> dict[str, Any]:
+async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, Any]:
     """Get full metadata for an entity."""
     if not metadata_loader:
         raise HTTPException(500, "Metadata loader not initialized")
@@ -261,17 +264,21 @@ async def get_entity_metadata(entity: str) -> dict[str, Any]:
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    user_context = get_user_context(http_request)
+
     # Build field metadata with UI config
     fields = []
     for field in entity_model.fields:
         field_type = get_field_type(field.type)
 
+        field_access = get_field_access(field, user_context, entity_model)
         field_meta = {
             "name": field.name,
             "displayName": field.display_name,
             "type": field.type,
             "primaryKey": field.primary_key,
             "readOnly": field.read_only,
+            "access": field_access,
             "validation": {
                 "required": field.validation.required,
                 "min": field.validation.min,
@@ -348,9 +355,13 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
     allowed, error_msg = can_access_entity(
         entity_model.name, entity_model.scope, "create", user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)
+
+    # Strip fields the user cannot write before processing
+    request.data = apply_field_write_policy(request.data, entity_model, user_context)
 
     # Get validation configuration
     validators = (
@@ -496,7 +507,7 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
 
     return JSONResponse(
         status_code=201,
-        content={"data": saved},
+        content={"data": apply_field_read_policy(saved, entity_model, user_context)},
     )
 
 
@@ -517,6 +528,7 @@ async def get_entity(entity: str, id: str, http_request: Request) -> dict[str, A
     allowed, error_msg = can_access_entity(
         entity_model.name, entity_model.scope, "read", user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)
@@ -531,9 +543,10 @@ async def get_entity(entity: str, id: str, http_request: Request) -> dict[str, A
         if record_tenant and record_tenant != user_context.tenant_id:
             raise HTTPException(404, "Record not found")
 
-    # Hydrate relation display values
+    # Hydrate relation display values, then apply field read policy
     hydrated = db.hydrate_relations([result], entity_model, metadata_loader)
-    return {"data": hydrated[0] if hydrated else result}
+    record = hydrated[0] if hydrated else result
+    return {"data": apply_field_read_policy(record, entity_model, user_context)}
 
 
 @app.put("/api/entities/{entity}/{id}")
@@ -553,9 +566,13 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
     allowed, error_msg = can_access_entity(
         entity_model.name, entity_model.scope, "update", user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)
+
+    # Strip fields the user cannot write before processing
+    request.data = apply_field_write_policy(request.data, entity_model, user_context)
 
     # Get original record
     original = db.get(entity_model, id)
@@ -711,7 +728,7 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
 
     return JSONResponse(
         status_code=200,
-        content={"data": saved},
+        content={"data": apply_field_read_policy(saved, entity_model, user_context)},
     )
 
 
@@ -732,6 +749,7 @@ async def delete_entity(entity: str, id: str, http_request: Request):
     allowed, error_msg = can_access_entity(
         entity_model.name, entity_model.scope, "delete", user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)
@@ -862,6 +880,7 @@ async def query_entity(entity: str, query: QueryRequest, http_request: Request) 
     allowed, error_msg = can_access_entity(
         entity_model.name, entity_model.scope, "read", user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)
@@ -892,12 +911,16 @@ async def query_entity(entity: str, query: QueryRequest, http_request: Request) 
         offset=query.offset,
     )
 
-    # Hydrate relation display values
+    # Hydrate relation display values, then apply field read policy to each row
     result["data"] = db.hydrate_relations(
         result["data"],
         entity_model,
         metadata_loader,
     )
+    result["data"] = [
+        apply_field_read_policy(row, entity_model, user_context)
+        for row in result["data"]
+    ]
 
     return result
 
@@ -934,6 +957,7 @@ async def aggregate_entity(
         "read",
         user_context,
         auth_required=jwt_service is not None,
+        entity_model=entity_model,
     )
     if not allowed:
         raise HTTPException(403, error_msg)

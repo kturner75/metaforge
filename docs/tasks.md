@@ -8,9 +8,6 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 - When a feature is done, move it to Completed and summarize key outcomes.
 
 ## Inbox (Triage Needed)
-- [x] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav (sections, ordering, icons, admin grouping) — ADR-0011 implemented: `metadata/screens/*.yaml` loader, `GET /api/navigation` + `GET /api/screens/:slug`, sectioned sidebar with icons, permission-aware filtering, auto-generation for uncovered entities
-- [x] Screen as a first-class concept: routable pages beyond entity CRUD (admin screens, dashboards, entity overview pages) — `ScreenConfig` types with entity/dashboard/admin/custom types, `EntityCrudScreen` handles dashboard-type screens, screen-defined view config IDs
-- [x] Breadcrumb component: context-aware navigation trail (e.g., Company → Contact detail shows "Back to Company" instead of "Back to list") — `Breadcrumb.tsx` component + `entityUtils.ts` helpers, wired into `EntityCrudScreen` with CSS in `App.css`
 
 ## Design Decisions (Captured)
 
@@ -333,3 +330,8 @@ view:
 ### Documentation / ADRs
 - [x] 8 ADRs accepted: validation architecture, expression DSL, defaulting lifecycle, warning acknowledgment, message interpolation, entity scoping, agent skills, UI component configuration
 - [x] ADR index maintained in `docs/adr/README.md`
+
+### Navigation & Screens (ADR-0011)
+- [x] Navigation metadata: replace static `routeConfig.ts` + `Sidebar` with metadata-driven nav — `metadata/screens/*.yaml` loader, `GET /api/navigation` + `GET /api/screens/:slug`, sectioned sidebar with icons, permission-aware filtering, auto-generation for uncovered entities
+- [x] Screen as a first-class concept: entity/dashboard/admin/custom screen types; `EntityCrudScreen` handles dashboard-type screens, screen-defined view config IDs
+- [x] Breadcrumb component: context-aware navigation trail — `Breadcrumb.tsx` + `entityUtils.ts` helpers, wired into `EntityCrudScreen`

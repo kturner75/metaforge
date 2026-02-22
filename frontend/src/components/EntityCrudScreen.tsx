@@ -198,6 +198,11 @@ export function EntityCrudScreen() {
   const pluralName = metadata?.pluralName ?? `${entityName}s`
   const screenName = screen?.name
 
+  // Entity-level operation permissions (default true while metadata loads to avoid flicker)
+  const canCreate = metadata?.operations?.create ?? true
+  const canUpdate = metadata?.operations?.update ?? true
+  const canDelete = metadata?.operations?.delete ?? true
+
   // Fetch the current record (for detail/edit modes) to display its label in the breadcrumb
   const needsRecord = mode === 'detail' || mode === 'edit'
   const { data: recordData } = useEntity(entityName, needsRecord ? id : undefined)
@@ -220,6 +225,16 @@ export function EntityCrudScreen() {
   // For unknown screens (no screen YAML and no routeConfig), show error
   if (!screen && !routeConfig) {
     return <div className="error">Screen not found</div>
+  }
+
+  // Redirect from create/edit if the user lacks permission (metadata has loaded)
+  if (metadata && mode === 'create' && !canCreate) {
+    navigate(baseUrl, { replace: true })
+    return null
+  }
+  if (metadata && mode === 'edit' && !canUpdate) {
+    navigate(id ? `${baseUrl}/${id}` : baseUrl, { replace: true })
+    return null
   }
 
   // --- Dashboard screen type ---
@@ -246,9 +261,11 @@ export function EntityCrudScreen() {
           <Breadcrumb items={breadcrumbItems} />
           <div className="entity-crud-header">
             <h1>{screenName ?? pluralName}</h1>
-            <button className="primary" onClick={() => navigate(`${baseUrl}/new`)}>
-              New {displayName}
-            </button>
+            {canCreate && (
+              <button className="primary" onClick={() => navigate(`${baseUrl}/new`)}>
+                New {displayName}
+              </button>
+            )}
           </div>
           {drilldownFilter && (
             <div className="drilldown-filter-badge">
@@ -296,9 +313,11 @@ export function EntityCrudScreen() {
           <div className="form-container">
             <div className="form-header">
               <h2>Edit {displayName}</h2>
-              <button className="danger" onClick={() => crud.handleDelete(id)}>
-                Delete
-              </button>
+              {canDelete && (
+                <button className="danger" onClick={() => crud.handleDelete(id)}>
+                  Delete
+                </button>
+              )}
             </div>
             <ConfiguredComponent
               config={formConfig(id)}
@@ -315,7 +334,7 @@ export function EntityCrudScreen() {
         <div className="detail-view-container">
           <div className="detail-view-header">
             <Breadcrumb items={breadcrumbItems} />
-            <button onClick={handleEdit}>Edit</button>
+            {canUpdate && <button onClick={handleEdit}>Edit</button>}
           </div>
           <ConfiguredComponent config={detailConfig(id)} />
         </div>

@@ -55,6 +55,7 @@ class FieldDefinition:
     validation: ValidationRules = field(default_factory=ValidationRules)
     ui: FieldUIConfig = field(default_factory=FieldUIConfig)
     relation: RelationConfig | None = None
+    permissions: "FieldPermissions | None" = None
 
 
 @dataclass
@@ -93,6 +94,26 @@ class HookConfig:
 
 
 @dataclass
+class FieldPermissions:
+    """Per-field access control policy."""
+
+    read: str = "readonly"   # Minimum role to read this field
+    write: str = "readonly"  # Minimum role to write this field
+
+
+@dataclass
+class EntityPermissions:
+    """Entity-level and field-level permission configuration."""
+
+    read: str = "readonly"
+    create: str = "user"
+    update: str = "user"
+    delete: str = "manager"
+    # Field policies keyed by field name for O(1) lookup
+    field_policies: dict[str, FieldPermissions] = field(default_factory=dict)
+
+
+@dataclass
 class EntityModel:
     name: str
     display_name: str
@@ -106,6 +127,7 @@ class EntityModel:
     defaults: list[DefaultConfig] = field(default_factory=list)
     hooks: dict[str, list[HookConfig]] = field(default_factory=dict)
     label_field: str | None = None  # Field used as human-readable record label (breadcrumbs, titles)
+    permissions: "EntityPermissions | None" = None
 
 
 class MetadataLoader:
@@ -235,6 +257,9 @@ class MetadataLoader:
                     label_field = f.name
                     break
 
+        # Parse entity-level permissions (optional)
+        entity_permissions = self._resolve_entity_permissions(data.get("permissions"), fields)
+
         return EntityModel(
             name=name,
             display_name=data.get("displayName", name),
@@ -248,6 +273,7 @@ class MetadataLoader:
             defaults=defaults,
             hooks=hooks,
             label_field=label_field,
+            permissions=entity_permissions,
         )
 
     def _resolve_field(self, data: dict) -> FieldDefinition:
@@ -279,6 +305,15 @@ class MetadataLoader:
                 on_delete=relation_data.get("onDelete", "restrict"),
             )
 
+        # Parse field-level permissions (optional)
+        perm_data = data.get("permissions")
+        field_permissions = None
+        if perm_data:
+            field_permissions = FieldPermissions(
+                read=perm_data.get("read", "readonly"),
+                write=perm_data.get("write", "readonly"),
+            )
+
         return FieldDefinition(
             name=name,
             type=field_type,
@@ -290,6 +325,7 @@ class MetadataLoader:
             options=data.get("options"),
             validation=validation,
             relation=relation,
+            permissions=field_permissions,
         )
 
     def _get_on(self, data: dict, default: list[str] | None = None) -> list[str]:
@@ -327,6 +363,48 @@ class MetadataLoader:
             when=data.get("when"),
             on=self._get_on(data),
         )
+
+    def _resolve_entity_permissions(
+        self,
+        data: dict | None,
+        fields: list[FieldDefinition],
+    ) -> "EntityPermissions | None":
+        """Parse the entity-level permissions block from YAML.
+
+        Returns None only when no permissions are configured at either the
+        entity level or individual field level.
+        """
+        # Check if any field has inline permissions
+        fields_with_perms = [f for f in fields if f.permissions]
+
+        if not data and not fields_with_perms:
+            return None
+
+        # Parse access block (use defaults when block absent)
+        access = data.get("access", {}) if data else {}
+        entity_perms = EntityPermissions(
+            read=access.get("read", "readonly"),
+            create=access.get("create", "user"),
+            update=access.get("update", "user"),
+            delete=access.get("delete", "manager"),
+        )
+
+        # Parse fieldPolicies list into a dict keyed by field name
+        for policy in (data.get("fieldPolicies", []) if data else []):
+            field_name = policy.get("field")
+            if not field_name:
+                continue
+            entity_perms.field_policies[field_name] = FieldPermissions(
+                read=policy.get("read", "readonly"),
+                write=policy.get("write", "readonly"),
+            )
+
+        # Promote inline field-level permissions (entity-level block takes precedence)
+        for f in fields_with_perms:
+            if f.name not in entity_perms.field_policies:
+                entity_perms.field_policies[f.name] = f.permissions  # type: ignore[arg-type]
+
+        return entity_perms
 
     def _resolve_hooks(self, data: dict) -> dict[str, list[HookConfig]]:
         """Convert hooks dict from YAML to HookConfig lists by hook point."""

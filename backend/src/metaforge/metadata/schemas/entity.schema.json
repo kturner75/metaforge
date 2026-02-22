@@ -66,6 +66,9 @@
               "items": { "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/hookDefinition" }
             }
           }
+        },
+        "permissions": {
+          "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/entityPermissionsDef"
         }
       }
     }

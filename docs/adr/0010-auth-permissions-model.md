@@ -1,7 +1,7 @@
 # ADR-0010: Declarative Auth & Permissions Model
 
 ## Status
-Proposed
+Accepted — Partially implemented (entity-level access overrides + field-level read/write policies complete; row-level policies and admin UI deferred)
 
 ## Context
 MetaForge currently has a working auth system with:

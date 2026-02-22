@@ -93,9 +93,9 @@ view:
 - [ ] SQLite dev / Postgres prod parity checks
 
 ## Auth & Permissions
-- [ ] Role/permission model in metadata (declarative per-entity access)
+- [x] Role/permission model in metadata (declarative per-entity access) — `EntityPermissions` + `FieldPermissions` dataclasses in `loader.py`; `permissions:` block in entity YAML with `access:` overrides and `fieldPolicies:`; `can_access_entity()` updated to read per-entity thresholds; JSON Schema updated with `entityPermissionsDef`, `fieldPermissionsDef`, `fieldPolicyDef`; 23 new tests in `test_permissions.py`; 576 total passing
+- [x] Field-level access policies (hide/redact fields by role) — `apply_field_read_policy()`, `apply_field_write_policy()`, `get_field_access()` in `permissions.py`; wired into all CRUD/query endpoints and metadata endpoint; frontend `FieldMetadata.access` annotation drives field filtering in `RecordForm`, `RecordDetail`, `QueryGrid`
 - [ ] Row-level access policies
-- [ ] Field-level access policies (hide/redact fields by role)
 - [ ] Admin UI for managing roles and permissions
 
 ## UI Component Configuration (ADR-0008)

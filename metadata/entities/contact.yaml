@@ -61,6 +61,18 @@ fields:
     type: name
     readOnly: true
 
+# Permissions
+permissions:
+  access:
+    read: readonly
+    create: user
+    update: user
+    delete: manager
+  fieldPolicies:
+    - field: notes
+      read: user       # readonly role cannot see notes
+      write: manager   # only managers can edit notes
+
 # Computed defaults
 defaults:
   - field: fullName

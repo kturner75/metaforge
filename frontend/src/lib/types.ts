@@ -19,12 +19,18 @@ export interface FieldUIConfig {
   mode?: string
 }
 
+export interface FieldAccess {
+  read: boolean
+  write: boolean
+}
+
 export interface FieldMetadata {
   name: string
   displayName: string
   type: string
   primaryKey?: boolean
   readOnly?: boolean
+  access?: FieldAccess
   validation?: ValidationRules
   options?: { value: string; label: string }[]
   relation?: {
@@ -39,12 +45,19 @@ export interface FieldMetadata {
   }
 }
 
+export interface EntityOperations {
+  create: boolean
+  update: boolean
+  delete: boolean
+}
+
 export interface EntityMetadata {
   entity: string
   displayName: string
   pluralName: string
   primaryKey: string
   labelField: string | null
+  operations?: EntityOperations
   fields: FieldMetadata[]
 }
 

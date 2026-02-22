@@ -58,8 +58,10 @@ export function RecordDetail({
       }))
     }
 
-    // Auto-generate: all visible non-auto fields in one section
-    const visibleFields = metadata.fields.filter((f) => !isAutoField(f))
+    // Auto-generate: all visible non-auto fields the user can read
+    const visibleFields = metadata.fields.filter(
+      (f) => !isAutoField(f) && f.access?.read !== false
+    )
     return [
       {
         label: undefined,

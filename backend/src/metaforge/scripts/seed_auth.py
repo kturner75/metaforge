@@ -34,7 +34,8 @@ def _find_user_by_email(db, user_entity, email: str):
         filter={"conditions": [{"field": "email", "operator": "eq", "value": email}]},
         limit=1,
     )
-    return result.get("data", [None])[0]
+    data = result.get("data", [])
+    return data[0] if data else None
 
 
 def _ensure_membership(db, membership_entity, user_id: str, tenant_id: str, role: str, reset: bool):
@@ -48,7 +49,8 @@ def _ensure_membership(db, membership_entity, user_id: str, tenant_id: str, role
         },
         limit=1,
     )
-    membership = membership_result.get("data", [None])[0]
+    data = membership_result.get("data", [])
+    membership = data[0] if data else None
     if membership:
         if reset and membership.get("role") != role:
             db.update(membership_entity, membership["id"], {"role": role})
@@ -114,18 +116,22 @@ def main():
     metadata_path = base_path / "metadata"
     db_path = base_path / "data" / "metaforge.db"
 
-    print(f"Database: {db_path}")
+    # Resolve database URL: DATABASE_URL env var takes precedence over default SQLite path
+    import os
+    db_url = os.environ.get("DATABASE_URL") or f"sqlite:///{db_path}"
+    print(f"Database: {db_url}")
     print(f"Metadata: {metadata_path}")
 
-    # Ensure data directory exists
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    # Ensure data directory exists (only relevant for SQLite)
+    if db_url.startswith("sqlite"):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load metadata
     loader = MetadataLoader(metadata_path)
     loader.load_all()
 
     # Connect to database
-    db_config = DatabaseConfig(url=f"sqlite:///{db_path}")
+    db_config = DatabaseConfig(url=db_url)
     db = create_adapter(db_config)
     db.connect()
 
@@ -175,16 +181,42 @@ def main():
                 membership_entity,
                 password_service,
                 tenant["id"],
+                "manager@example.com",
+                "manager123",
+                "Manager User",
+                "manager",
+                reset=True,
+            )
+            _ensure_user(
+                db,
+                user_entity,
+                membership_entity,
+                password_service,
+                tenant["id"],
                 "user@example.com",
                 "user123",
                 "Regular User",
                 "user",
                 reset=True,
             )
+            _ensure_user(
+                db,
+                user_entity,
+                membership_entity,
+                password_service,
+                tenant["id"],
+                "readonly@example.com",
+                "readonly123",
+                "Read Only User",
+                "readonly",
+                reset=True,
+            )
 
         print("\nDefault UI login:")
-        print("  Admin: admin@example.com / admin123")
-        print("  User:  user@example.com / user123")
+        print("  Admin:    admin@example.com / admin123")
+        print("  Manager:  manager@example.com / manager123")
+        print("  User:     user@example.com / user123")
+        print("  Readonly: readonly@example.com / readonly123")
         print("  Tenant ID (optional):", tenant["id"])
 
         db.close()
@@ -217,6 +249,20 @@ def main():
     )
     print(f"Created User: {admin_id} (admin@example.com)")
 
+    manager_id = _ensure_user(
+        db,
+        user_entity,
+        membership_entity,
+        password_service,
+        tenant["id"],
+        "manager@example.com",
+        "manager123",
+        "Manager User",
+        "manager",
+        reset=True,
+    )
+    print(f"Created User: {manager_id} (manager@example.com)")
+
     user_id = _ensure_user(
         db,
         user_entity,
@@ -231,21 +277,35 @@ def main():
     )
     print(f"Created User: {user_id} (user@example.com)")
 
+    readonly_id = _ensure_user(
+        db,
+        user_entity,
+        membership_entity,
+        password_service,
+        tenant["id"],
+        "readonly@example.com",
+        "readonly123",
+        "Read Only User",
+        "readonly",
+        reset=True,
+    )
+    print(f"Created User: {readonly_id} (readonly@example.com)")
+
     db.close()
 
     print("\n" + "=" * 50)
     print("Seed complete! Test credentials:")
     print("=" * 50)
-    print("\nAdmin user:")
-    print("  Email: admin@example.com")
-    print("  Password: admin123")
-    print("\nRegular user:")
-    print("  Email: user@example.com")
-    print("  Password: user123")
+    print("\nAdmin:    admin@example.com / admin123")
+    print("Manager:  manager@example.com / manager123")
+    print("User:     user@example.com / user123")
+    print("Readonly: readonly@example.com / readonly123")
     print(f"\nTenant ID (optional): {tenant['id']}")
     print("\nUI login:")
-    print("  Admin: admin@example.com / admin123")
-    print("  User:  user@example.com / user123")
+    print("  admin@example.com / admin123")
+    print("  manager@example.com / manager123")
+    print("  user@example.com / user123")
+    print("  readonly@example.com / readonly123")
     print("\nTest login:")
     print('  curl -X POST http://localhost:8000/api/auth/login \\')
     print('    -H "Content-Type: application/json" \\')

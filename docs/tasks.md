@@ -93,8 +93,6 @@ view:
 - [ ] SQLite dev / Postgres prod parity checks
 
 ## Auth & Permissions
-- [x] Role/permission model in metadata (declarative per-entity access) — `EntityPermissions` + `FieldPermissions` dataclasses in `loader.py`; `permissions:` block in entity YAML with `access:` overrides and `fieldPolicies:`; `can_access_entity()` updated to read per-entity thresholds; JSON Schema updated with `entityPermissionsDef`, `fieldPermissionsDef`, `fieldPolicyDef`; 23 new tests in `test_permissions.py`; 576 total passing
-- [x] Field-level access policies (hide/redact fields by role) — `apply_field_read_policy()`, `apply_field_write_policy()`, `get_field_access()` in `permissions.py`; wired into all CRUD/query endpoints and metadata endpoint; frontend `FieldMetadata.access` annotation drives field filtering in `RecordForm`, `RecordDetail`, `QueryGrid`
 - [ ] Row-level access policies
 - [ ] Admin UI for managing roles and permissions
 
@@ -224,6 +222,9 @@ view:
 - [x] Role hierarchy: readonly < user < manager < admin
 - [x] Entity-level permission enforcement: read (all), create/update (user+), delete (manager+), global entity writes (admin)
 - [x] Multi-tenant support: tenant membership model, tenant switching on refresh
+- [x] Declarative per-entity access overrides + field-level policies (ADR-0010) — `EntityPermissions` + `FieldPermissions` dataclasses in `loader.py`; `permissions:` block in entity YAML with `access:` overrides and `fieldPolicies:`; `can_access_entity()` reads per-entity thresholds; `apply_field_read_policy()`, `apply_field_write_policy()`, `get_field_access()` wired into all CRUD/query/metadata endpoints; JSON Schema updated; 23 new tests, 576 total
+- [x] Frontend field-level access — `FieldMetadata.access` annotation drives field filtering in `RecordForm`, `RecordDetail`, `QueryGrid`
+- [x] Entity operation permissions in UI — metadata endpoint emits `operations: {create, update, delete}` per user; `EntityCrudScreen` gates New/Edit/Delete buttons and redirects direct URL access when permission denied; seed scripts updated with `manager` and `readonly` test users; `docs/development.md` added
 
 ### UI Component Configuration (ADR-0008 Foundation)
 - [x] Backend `views` package: `types.py` (DataPattern, OwnerType, ConfigScope, ConfigSource enums + SavedConfig dataclass), `store.py` (SavedConfigStore with `_saved_configs` system table, CRUD, filtered list, precedence-based resolve, YAML upsert), `loader.py` (ViewConfigLoader reads `metadata/views/*.yaml` with `yaml:{stem}` ID convention), `endpoints.py` (REST API at `/api/views/` — list, get, create, update, delete, resolve; YAML configs are read-only)

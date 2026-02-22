@@ -138,6 +138,31 @@ view:
 - [x] DrillDown: context-passing from summary views to detail views — clicking bar/pie/funnel chart segments navigates to the entity list pre-filtered by that dimension; dismissible filter badge shown in list view; location state preserves clean URLs
 - [ ] Structured config editor UI (view/edit saved configs without AI)
 
+## Entity Design Sandbox (ADR-0013)
+
+The seamless path from AI brainstorm conversation to running, promotable entity. See [docs/adr/0013-entity-design-sandbox.md](adr/0013-entity-design-sandbox.md).
+
+### Backend
+- [ ] Draft metadata loader — scan `metadata/drafts/` alongside `entities/`, set `is_draft: true` on loaded models
+- [ ] Draft DB isolation — separate SQLite `draft.db` (or `draft` schema in Postgres) for draft entity tables; `DraftAdapter` wraps existing adapter pattern
+- [ ] `metaforge metadata hot-reload` endpoint / file-watch — re-scan metadata dirs without server restart
+- [ ] Fake data generator — `FakeDataService.generate(entity, count, locale)` using `faker`, respecting field types and picklist values
+- [ ] `promote_entity(name, generate_doc)` — move YAML, run migration, drop draft data, optionally emit reference doc
+- [ ] `dismiss_entity(name)` — delete draft YAML and drop draft table
+- [ ] Entity reference doc generator — produce `docs/entities/{entity}.md` from YAML on promote
+
+### MCP Tools
+- [ ] `draft_entity(yaml)` MCP tool — write draft YAML, create draft table, hot-reload metadata
+- [ ] `update_draft_entity(name, changes)` MCP tool — patch draft YAML, alter draft table
+- [ ] `generate_fake_data(entity, count)` MCP tool — seed realistic records into draft DB
+- [ ] `promote_entity(name)` MCP tool — full promote flow via MCP
+- [ ] `dismiss_entity(name)` MCP tool — dismiss flow via MCP
+
+### Frontend
+- [ ] DRAFT badge in sidebar nav for draft entities
+- [ ] Dismissible DRAFT banner on list/detail views for draft entities
+- [ ] Promote / Dismiss actions in DRAFT banner (calls backend, navigates to production entity or list)
+
 ## Agent Skills (ADR-0007)
 - [ ] Skill registry and definition schema
 - [ ] Context assembler (gathers entity metadata, view context, permissions for skills)

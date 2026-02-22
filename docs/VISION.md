@@ -152,6 +152,34 @@ These aren't generated code artifacts. They're runtime configurations that produ
 - **Reversible**: Configurations are versioned and can be rolled back or deleted
 - **Promotable**: Proven Layer 3 configs can be graduated to Layer 2 YAML and checked into version control
 
+### AI-Assisted Entity Design — Conversation to Production
+
+The highest-leverage point for AI in MetaForge is not runtime configuration — it's the design loop itself.
+
+Traditional data model design involves too many handoffs: brainstorm with an AI, transcribe to a Confluence page, an engineer interprets the docs, writes migrations and components, and the product owner sees the entity for the first time days later. Each handoff is lossy and slow.
+
+MetaForge's metadata-as-truth architecture eliminates these handoffs. Because the framework auto-generates database schema, API endpoints, and full UI from entity YAML, an AI assistant can take a design conversation and produce a **working, explorable application** — not a document. The design *is* the implementation.
+
+**The workflow:**
+
+1. Developer opens a chat with Claude (via MCP or embedded agent): *"Let's design a Deal entity for our CRM pipeline."*
+2. Claude asks questions, proposes fields and validations, and iteratively generates entity YAML.
+3. Claude calls `draft_entity(yaml)` — the entity appears in the running app immediately, marked DRAFT.
+4. Claude calls `generate_fake_data("Deal", count=25)` — 25 realistic deals are seeded.
+5. The developer browses the real UI: list view, detail view, filters, charts. They react to what they see.
+6. *"Add a closeDate field. Make stage a required picklist: Prospecting, Qualifying, Proposal, Closed Won, Closed Lost."* Claude calls `update_draft_entity(...)` — the UI updates.
+7. When satisfied: `promote_entity("Deal")` — YAML moves to `entities/`, migration runs against production DB, entity goes live. Draft data is discarded.
+8. Or: `dismiss_entity("Deal")` — draft deleted, no trace left, start over.
+
+**Why this works in MetaForge but not in traditional frameworks:**
+
+In a conventional framework, the gap between "describe a field" and "see it rendered in a working app" requires writing migration code, endpoint code, form code, and grid code. Each step requires developer intervention. The AI can describe the design but cannot close the loop.
+
+In MetaForge, the only artifact is the YAML. Everything else — schema, endpoints, form, grid, chart, navigation — is already handled. The AI closes the loop by writing metadata, not code.
+
+**Documentation as a byproduct:**
+On promote, the framework can auto-generate a Markdown reference doc from the entity YAML — fields, types, validations, picklist values, relationships. This replaces the Confluence page in the traditional workflow. It is always accurate (generated from the running source of truth), versioned in git alongside the YAML, and requires no separate maintenance.
+
 ### AI-Assisted Data Analysis — Rule-Aware Reasoning
 
 Beyond configuring views, MetaForge's metadata layer enables AI agents to reason about data in the context of business rules.
@@ -247,12 +275,12 @@ These principles guide architectural decisions across the framework:
 
 ### Designed, Not Yet Built
 - Agent skills framework (ADR-0007) — skill registry, context assembler, output verifier
+- AI-Assisted Entity Design Sandbox (ADR-0013) — draft entities, fake data generation, promote/dismiss flow, MCP design tools
 - Structured config editor UI — view/edit saved configs without AI
-- Drill-down context passing from summary views to detail views
 
 ### Planned
 - Embedded AI agent for in-app natural language interaction
 - AI-assisted data analysis with rule-aware reasoning
 - Composable agent workflow definitions
 - Config promotion (Layer 3 → Layer 2)
-- PostgreSQL adapter for production deployments
+- Auto-generated entity reference documentation (on promote)

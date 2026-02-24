@@ -13,7 +13,9 @@ def cli():
 from metaforge.cli.metadata_cmd import metadata  # noqa: E402
 from metaforge.cli.migrate_cmd import migrate  # noqa: E402
 from metaforge.cli.mcp_cmd import mcp_serve  # noqa: E402
+from metaforge.cli.new_cmd import new  # noqa: E402
 
 cli.add_command(metadata)
 cli.add_command(migrate)
 cli.add_command(mcp_serve)
+cli.add_command(new)

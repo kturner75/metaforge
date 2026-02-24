@@ -8,6 +8,7 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 - When a feature is done, move it to Completed and summarize key outcomes.
 
 ## Inbox (Triage Needed)
+- [ ] Database reverse-engineering: `metaforge import db <connection-url>` — introspect an existing database schema and generate MetaForge entity YAML stubs (field types inferred from SQL types, relations inferred from foreign keys, picklists suggested from low-cardinality columns). Output to `metadata/drafts/` for sandbox iteration before promote.
 
 ## Design Decisions (Captured)
 

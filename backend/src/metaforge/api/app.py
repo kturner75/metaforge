@@ -10,9 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from metaforge.metadata.loader import MetadataLoader
+from metaforge.metadata.loader import EntityModel, MetadataLoader
 from metaforge.metadata.validator import validate_metadata_dir
-from metaforge.persistence import PersistenceAdapter, DatabaseConfig, create_adapter
+from metaforge.persistence import PersistenceAdapter, DatabaseConfig, create_adapter, DraftAdapter
 from metaforge.core.types import get_field_type
 from metaforge.validation import (
     Operation,
@@ -49,7 +49,9 @@ from metaforge.screens.endpoints import create_screens_router
 # Global instances (initialized on startup)
 metadata_loader: MetadataLoader | None = None
 db: PersistenceAdapter | None = None
+draft_db: PersistenceAdapter | None = None
 lifecycle_factory: EntityLifecycleFactory | None = None
+draft_lifecycle_factory: EntityLifecycleFactory | None = None
 acknowledgment_service: WarningAcknowledgmentService | None = None
 jwt_service: JWTService | None = None
 password_service: PasswordService | None = None
@@ -62,9 +64,9 @@ hook_service: HookService | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown."""
-    global metadata_loader, db, lifecycle_factory, acknowledgment_service
-    global jwt_service, password_service, config_store, view_loader
-    global screen_loader, hook_service
+    global metadata_loader, db, draft_db, lifecycle_factory, draft_lifecycle_factory
+    global acknowledgment_service, jwt_service, password_service, config_store
+    global view_loader, screen_loader, hook_service
 
     # Register validation functions, validators, and hooks
     register_all_builtins()
@@ -114,15 +116,24 @@ async def lifespan(app: FastAPI):
     db = create_adapter(db_config)
     db.connect()
 
-    # Create tables for all entities
+    # Create tables for all non-draft entities (drafts use a separate DB)
     for entity_name in metadata_loader.list_entities():
         entity = metadata_loader.get_entity(entity_name)
-        if entity:
+        if entity and not entity.is_draft:
             db.initialize_entity(entity)
+
+    # Initialize draft database (separate SQLite file for draft entity tables)
+    draft_db = DraftAdapter.from_base_path(base_path)
+    draft_db.connect()
+    for entity_name in metadata_loader.list_entities():
+        entity = metadata_loader.get_entity(entity_name)
+        if entity and entity.is_draft:
+            draft_db.initialize_entity(entity)
 
     # Initialize validation lifecycle factory
     secret_key = os.environ.get("METAFORGE_SECRET_KEY", "dev-secret-key-change-in-production")
     lifecycle_factory = EntityLifecycleFactory(db, metadata_loader, secret_key)
+    draft_lifecycle_factory = EntityLifecycleFactory(draft_db, metadata_loader, secret_key)
     acknowledgment_service = WarningAcknowledgmentService(secret_key)
     hook_service = HookService()
 
@@ -168,6 +179,8 @@ async def lifespan(app: FastAPI):
     # Cleanup
     if db:
         db.close()
+    if draft_db:
+        draft_db.close()
 
 
 app = FastAPI(title="MetaForge API", lifespan=lifespan)
@@ -232,6 +245,28 @@ def _get_metadata_loader():
     return metadata_loader
 
 
+def _resolve_adapter(entity_model: EntityModel) -> PersistenceAdapter:
+    """Return the right DB adapter for an entity (draft vs live)."""
+    if entity_model.is_draft:
+        if draft_db is None:
+            raise HTTPException(500, "Draft database not initialized")
+        return draft_db
+    if db is None:
+        raise HTTPException(500, "Database not initialized")
+    return db
+
+
+def _resolve_lifecycle(entity_model: EntityModel) -> EntityLifecycleFactory:
+    """Return the right lifecycle factory for an entity (draft vs live)."""
+    if entity_model.is_draft:
+        if draft_lifecycle_factory is None:
+            raise HTTPException(500, "Draft lifecycle factory not initialized")
+        return draft_lifecycle_factory
+    if lifecycle_factory is None:
+        raise HTTPException(500, "Lifecycle factory not initialized")
+    return lifecycle_factory
+
+
 # --- Metadata Endpoints ---
 
 
@@ -249,6 +284,7 @@ async def list_entities() -> dict[str, Any]:
                 "name": entity.name,
                 "displayName": entity.display_name,
                 "pluralName": entity.plural_name,
+                "isDraft": entity.is_draft,
             })
 
     return {"entities": entities}
@@ -334,8 +370,72 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
         "pluralName": entity_model.plural_name,
         "primaryKey": entity_model.primary_key,
         "labelField": entity_model.label_field,
+        "isDraft": entity_model.is_draft,
         "operations": operations,
         "fields": fields,
+    }
+
+
+# --- Admin Endpoints ---
+
+
+@app.post("/api/admin/metadata/reload")
+async def reload_metadata_endpoint() -> dict[str, Any]:
+    """Reload all metadata from disk without restarting the server.
+
+    Re-scans metadata/entities/, metadata/drafts/, metadata/views/, and
+    metadata/screens/ directories.  New entity tables are created via
+    ``CREATE TABLE IF NOT EXISTS``; existing tables are left intact.
+    Returns counts of the reloaded entities, view configs, and screens.
+    """
+    global lifecycle_factory, draft_lifecycle_factory
+
+    if (
+        not metadata_loader
+        or not db
+        or not draft_db
+        or not view_loader
+        or not screen_loader
+        or not config_store
+    ):
+        raise HTTPException(500, "Services not initialized")
+
+    secret_key = os.environ.get(
+        "METAFORGE_SECRET_KEY", "dev-secret-key-change-in-production"
+    )
+
+    # 1. Reload entity definitions
+    metadata_loader.reload()
+    entity_count = len(metadata_loader.list_entities())
+
+    # 2. Ensure DB tables exist for any newly-discovered entities (idempotent)
+    for entity_name in metadata_loader.list_entities():
+        entity = metadata_loader.get_entity(entity_name)
+        if entity:
+            if entity.is_draft:
+                draft_db.initialize_entity(entity)
+            else:
+                db.initialize_entity(entity)
+
+    # 3. Recreate lifecycle factories so they reflect the updated metadata
+    lifecycle_factory = EntityLifecycleFactory(db, metadata_loader, secret_key)
+    draft_lifecycle_factory = EntityLifecycleFactory(draft_db, metadata_loader, secret_key)
+
+    # 4. Reload view configs and re-upsert into the config store
+    view_loader.reload()
+    for cfg in view_loader.list_configs():
+        config_store.upsert_from_yaml(cfg)
+    view_count = len(view_loader.list_configs())
+
+    # 5. Reload screen configs
+    screen_loader.reload()
+    screen_count = len(screen_loader.list_screens())
+
+    return {
+        "reloaded": True,
+        "entities": entity_count,
+        "views": view_count,
+        "screens": screen_count,
     }
 
 
@@ -364,6 +464,10 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+    active_lf = _resolve_lifecycle(entity_model)
+
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
 
@@ -381,15 +485,15 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
 
     # Get validation configuration
     validators = (
-        lifecycle_factory.get_validators(entity_model)
-        + lifecycle_factory.get_relation_validators(entity_model)
+        active_lf.get_validators(entity_model)
+        + active_lf.get_relation_validators(entity_model)
     )
-    field_validators = lifecycle_factory.get_field_validators(entity_model)
-    defaults = lifecycle_factory.get_static_defaults(entity_model) + lifecycle_factory.get_defaults(entity_model)
-    auto_fields = lifecycle_factory.get_auto_fields(entity_model)
+    field_validators = active_lf.get_field_validators(entity_model)
+    defaults = active_lf.get_static_defaults(entity_model) + active_lf.get_defaults(entity_model)
+    auto_fields = active_lf.get_auto_fields(entity_model)
 
     # Run lifecycle (defaults + validation)
-    lifecycle = lifecycle_factory.create_lifecycle(entity_model, user_context)
+    lifecycle = active_lf.create_lifecycle(entity_model, user_context)
     result = await lifecycle.prepare(
         record=request.data,
         operation=Operation.CREATE,
@@ -468,7 +572,7 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
     )
 
     # Phase 3a: beforeSave hooks
-    before_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeSave")
+    before_save_defs = active_lf.get_hook_definitions(entity_model, "beforeSave")
     if before_save_defs and hook_service:
         hook_result = await hook_service.run_hooks("beforeSave", before_save_defs, hook_ctx)
         if hook_result and hook_result.abort:
@@ -485,21 +589,21 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
             )
 
     # Phase 3b: Persist (no commit yet if we have afterSave hooks)
-    after_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterSave")
-    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    after_save_defs = active_lf.get_hook_definitions(entity_model, "afterSave")
+    after_commit_defs = active_lf.get_hook_definitions(entity_model, "afterCommit")
     has_post_hooks = bool(after_save_defs or after_commit_defs)
 
     if has_post_hooks:
-        saved = db.create_no_commit(entity_model, hook_ctx.record, tenant_id=tenant_id)
+        saved = active_db.create_no_commit(entity_model, hook_ctx.record, tenant_id=tenant_id)
     else:
-        saved = db.create(entity_model, hook_ctx.record, tenant_id=tenant_id)
+        saved = active_db.create(entity_model, hook_ctx.record, tenant_id=tenant_id)
 
     # Phase 3c: afterSave hooks (same transaction)
     if after_save_defs and hook_service:
         hook_ctx.record = saved
         hook_result = await hook_service.run_hooks("afterSave", after_save_defs, hook_ctx)
         if hook_result and hook_result.abort:
-            db.rollback()
+            active_db.rollback()
             return JSONResponse(
                 status_code=422,
                 content={
@@ -514,7 +618,7 @@ async def create_entity(entity: str, request: CreateRequest, http_request: Reque
 
     # Phase 3d: Commit
     if has_post_hooks:
-        db.commit()
+        active_db.commit()
 
     # Phase 4: afterCommit hooks (fire-and-forget)
     if after_commit_defs and hook_service:
@@ -537,6 +641,9 @@ async def get_entity(entity: str, id: str, http_request: Request) -> dict[str, A
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
 
@@ -549,7 +656,7 @@ async def get_entity(entity: str, id: str, http_request: Request) -> dict[str, A
     if not allowed:
         raise HTTPException(403, error_msg)
 
-    result = db.get(entity_model, id)
+    result = active_db.get(entity_model, id)
     if not result:
         raise HTTPException(404, "Record not found")
 
@@ -560,7 +667,7 @@ async def get_entity(entity: str, id: str, http_request: Request) -> dict[str, A
             raise HTTPException(404, "Record not found")
 
     # Hydrate relation display values, then apply field read policy
-    hydrated = db.hydrate_relations([result], entity_model, metadata_loader)
+    hydrated = active_db.hydrate_relations([result], entity_model, metadata_loader)
     record = hydrated[0] if hydrated else result
     return {"data": apply_field_read_policy(record, entity_model, user_context)}
 
@@ -574,6 +681,10 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
     entity_model = metadata_loader.get_entity(entity)
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
+
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+    active_lf = _resolve_lifecycle(entity_model)
 
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
@@ -591,7 +702,7 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
     request.data = apply_field_write_policy(request.data, entity_model, user_context)
 
     # Get original record
-    original = db.get(entity_model, id)
+    original = active_db.get(entity_model, id)
     if not original:
         raise HTTPException(404, "Record not found")
 
@@ -603,18 +714,18 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
 
     # Get validation configuration
     validators = (
-        lifecycle_factory.get_validators(entity_model)
-        + lifecycle_factory.get_relation_validators(entity_model)
+        active_lf.get_validators(entity_model)
+        + active_lf.get_relation_validators(entity_model)
     )
-    field_validators = lifecycle_factory.get_field_validators(entity_model)
-    defaults = lifecycle_factory.get_defaults(entity_model)  # No static defaults on update
-    auto_fields = lifecycle_factory.get_auto_fields(entity_model)
+    field_validators = active_lf.get_field_validators(entity_model)
+    defaults = active_lf.get_defaults(entity_model)  # No static defaults on update
+    auto_fields = active_lf.get_auto_fields(entity_model)
 
     # Merge original with updates (keep original values for fields not in request)
     merged_data = {**original, **request.data}
 
     # Run lifecycle
-    lifecycle = lifecycle_factory.create_lifecycle(entity_model, user_context)
+    lifecycle = active_lf.create_lifecycle(entity_model, user_context)
     result = await lifecycle.prepare(
         record=merged_data,
         operation=Operation.UPDATE,
@@ -689,7 +800,7 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
     )
 
     # Phase 3a: beforeSave hooks
-    before_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeSave")
+    before_save_defs = active_lf.get_hook_definitions(entity_model, "beforeSave")
     if before_save_defs and hook_service:
         hook_result = await hook_service.run_hooks("beforeSave", before_save_defs, hook_ctx)
         if hook_result and hook_result.abort:
@@ -706,21 +817,21 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
             )
 
     # Phase 3b: Persist
-    after_save_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterSave")
-    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    after_save_defs = active_lf.get_hook_definitions(entity_model, "afterSave")
+    after_commit_defs = active_lf.get_hook_definitions(entity_model, "afterCommit")
     has_post_hooks = bool(after_save_defs or after_commit_defs)
 
     if has_post_hooks:
-        saved = db.update_no_commit(entity_model, id, hook_ctx.record)
+        saved = active_db.update_no_commit(entity_model, id, hook_ctx.record)
     else:
-        saved = db.update(entity_model, id, hook_ctx.record)
+        saved = active_db.update(entity_model, id, hook_ctx.record)
 
     # Phase 3c: afterSave hooks (same transaction)
     if after_save_defs and hook_service:
         hook_ctx.record = saved
         hook_result = await hook_service.run_hooks("afterSave", after_save_defs, hook_ctx)
         if hook_result and hook_result.abort:
-            db.rollback()
+            active_db.rollback()
             return JSONResponse(
                 status_code=422,
                 content={
@@ -735,7 +846,7 @@ async def update_entity(entity: str, id: str, request: UpdateRequest, http_reque
 
     # Phase 3d: Commit
     if has_post_hooks:
-        db.commit()
+        active_db.commit()
 
     # Phase 4: afterCommit hooks (fire-and-forget)
     if after_commit_defs and hook_service:
@@ -758,6 +869,10 @@ async def delete_entity(entity: str, id: str, http_request: Request):
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+    active_lf = _resolve_lifecycle(entity_model)
+
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
 
@@ -771,7 +886,7 @@ async def delete_entity(entity: str, id: str, http_request: Request):
         raise HTTPException(403, error_msg)
 
     # Get record to delete
-    record = db.get(entity_model, id)
+    record = active_db.get(entity_model, id)
     if not record:
         raise HTTPException(404, "Record not found")
 
@@ -782,12 +897,12 @@ async def delete_entity(entity: str, id: str, http_request: Request):
             raise HTTPException(404, "Record not found")
 
     # Get delete validators only
-    all_validators = lifecycle_factory.get_validators(entity_model)
+    all_validators = active_lf.get_validators(entity_model)
     delete_validators = [v for v in all_validators if Operation.DELETE in v.on]
 
     if delete_validators:
         # Run validation for delete
-        lifecycle = lifecycle_factory.create_lifecycle(entity_model, user_context)
+        lifecycle = active_lf.create_lifecycle(entity_model, user_context)
         result = await lifecycle.prepare(
             record=record,
             operation=Operation.DELETE,
@@ -818,7 +933,7 @@ async def delete_entity(entity: str, id: str, http_request: Request):
         user_context=user_context,
     )
 
-    before_delete_defs = lifecycle_factory.get_hook_definitions(entity_model, "beforeDelete")
+    before_delete_defs = active_lf.get_hook_definitions(entity_model, "beforeDelete")
     if before_delete_defs and hook_service:
         hook_result = await hook_service.run_hooks("beforeDelete", before_delete_defs, hook_ctx)
         if hook_result and hook_result.abort:
@@ -835,7 +950,7 @@ async def delete_entity(entity: str, id: str, http_request: Request):
             )
 
     # Handle relation constraints (restrict/cascade/setNull)
-    relation_errors = db.handle_delete_relations(
+    relation_errors = active_db.handle_delete_relations(
         entity_model, id, metadata_loader
     )
     if relation_errors:
@@ -851,12 +966,12 @@ async def delete_entity(entity: str, id: str, http_request: Request):
         )
 
     # Delete the record
-    after_commit_defs = lifecycle_factory.get_hook_definitions(entity_model, "afterCommit")
+    after_commit_defs = active_lf.get_hook_definitions(entity_model, "afterCommit")
     if after_commit_defs:
-        success = db.delete_no_commit(entity_model, id)
-        db.commit()
+        success = active_db.delete_no_commit(entity_model, id)
+        active_db.commit()
     else:
-        success = db.delete(entity_model, id)
+        success = active_db.delete(entity_model, id)
 
     if not success:
         raise HTTPException(404, "Record not found")
@@ -889,6 +1004,9 @@ async def query_entity(entity: str, query: QueryRequest, http_request: Request) 
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
 
@@ -918,7 +1036,7 @@ async def query_entity(entity: str, query: QueryRequest, http_request: Request) 
         else:
             effective_filter = {"conditions": [tenant_condition]}
 
-    result = db.query(
+    result = active_db.query(
         entity_model,
         fields=query.fields,
         filter=effective_filter,
@@ -928,7 +1046,7 @@ async def query_entity(entity: str, query: QueryRequest, http_request: Request) 
     )
 
     # Hydrate relation display values, then apply field read policy to each row
-    result["data"] = db.hydrate_relations(
+    result["data"] = active_db.hydrate_relations(
         result["data"],
         entity_model,
         metadata_loader,
@@ -963,6 +1081,9 @@ async def aggregate_entity(
     if not entity_model:
         raise HTTPException(404, f"Entity '{entity}' not found")
 
+    # Route to draft DB if entity is a draft
+    active_db = _resolve_adapter(entity_model)
+
     # Get user context from authentication middleware
     user_context = get_user_context(http_request)
 
@@ -995,7 +1116,7 @@ async def aggregate_entity(
             effective_filter = {"conditions": [tenant_condition]}
 
     try:
-        result = db.aggregate(
+        result = active_db.aggregate(
             entity_model,
             group_by=request.groupBy,
             measures=request.measures,

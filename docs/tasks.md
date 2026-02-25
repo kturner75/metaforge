@@ -144,9 +144,9 @@ view:
 The seamless path from AI brainstorm conversation to running, promotable entity. See [docs/adr/0013-entity-design-sandbox.md](adr/0013-entity-design-sandbox.md).
 
 ### Backend
-- [ ] Draft metadata loader — scan `metadata/drafts/` alongside `entities/`, set `is_draft: true` on loaded models
-- [ ] Draft DB isolation — separate SQLite `draft.db` (or `draft` schema in Postgres) for draft entity tables; `DraftAdapter` wraps existing adapter pattern
-- [ ] `metaforge metadata hot-reload` endpoint / file-watch — re-scan metadata dirs without server restart
+- [x] Draft metadata loader — `is_draft: bool` field on `EntityModel`; `MetadataLoader._load_entities_from_dir()` helper scans both `entities/` and `drafts/`; draft entities excluded from `db.initialize_entity` at startup; `isDraft` exposed in `GET /api/metadata` and `GET /api/metadata/{entity}`; 13 tests in `test_metadata_loader.py`; `metadata/drafts/` directory created
+- [x] Draft DB isolation — `DraftAdapter(SQLiteAdapter)` in `persistence/draft.py` with `from_base_path()` factory; `draft_db` + `draft_lifecycle_factory` globals in `api/app.py` and `mcp/bootstrap.py`; `_resolve_adapter`/`_resolve_lifecycle` helpers route each CRUD/query/aggregate request to the right DB based on `entity_model.is_draft`; `draft_db` closed on shutdown; `MetaForgeServices` updated; 13 tests in `test_draft_adapter.py`
+- [x] `metaforge metadata hot-reload` endpoint — `reload()` on `MetadataLoader`, `ViewConfigLoader`, `ScreenConfigLoader`; `POST /api/admin/metadata/reload` recreates entity tables (idempotent), refreshes lifecycle factories, re-upserts view configs; `reload_metadata(services)` free function in `mcp/bootstrap.py`; `view_loader` + `screen_loader` added to `MetaForgeServices`; 19 tests in `test_metadata_reload.py`
 - [ ] Fake data generator — `FakeDataService.generate(entity, count, locale)` using `faker`, respecting field types and picklist values
 - [ ] `promote_entity(name, generate_doc)` — move YAML, run migration, drop draft data, optionally emit reference doc
 - [ ] `dismiss_entity(name)` — delete draft YAML and drop draft table

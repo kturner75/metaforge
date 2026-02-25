@@ -128,6 +128,7 @@ class EntityModel:
     hooks: dict[str, list[HookConfig]] = field(default_factory=dict)
     label_field: str | None = None  # Field used as human-readable record label (breadcrumbs, titles)
     permissions: "EntityPermissions | None" = None
+    is_draft: bool = False  # True when loaded from metadata/drafts/
 
 
 class MetadataLoader:
@@ -143,6 +144,16 @@ class MetadataLoader:
         self._load_blocks()
         self._load_entities()
         self._validate_abbreviations()
+
+    def reload(self) -> None:
+        """Reload all metadata from disk, replacing any previously loaded data.
+
+        Safe to call on a live loader — clears accumulated state then re-runs
+        load_all() so callers immediately see the updated definitions.
+        """
+        self.entities.clear()
+        self.blocks.clear()
+        self.load_all()
 
     def _validate_abbreviations(self) -> None:
         """Validate entity abbreviations are unique and properly formatted."""
@@ -184,8 +195,12 @@ class MetadataLoader:
                     self.blocks[data["block"]] = data.get("fields", [])
 
     def _load_entities(self) -> None:
-        """Load entity definitions."""
-        entities_path = self.metadata_path / "entities"
+        """Load entity definitions from entities/ and drafts/ directories."""
+        self._load_entities_from_dir(self.metadata_path / "entities", is_draft=False)
+        self._load_entities_from_dir(self.metadata_path / "drafts", is_draft=True)
+
+    def _load_entities_from_dir(self, entities_path: Path, is_draft: bool) -> None:
+        """Load entity YAML files from a single directory."""
         if not entities_path.exists():
             return
 
@@ -193,10 +208,10 @@ class MetadataLoader:
             with open(yaml_file) as f:
                 data = yaml.safe_load(f)
                 if data and "entity" in data:
-                    entity = self._resolve_entity(data)
+                    entity = self._resolve_entity(data, is_draft=is_draft)
                     self.entities[entity.name] = entity
 
-    def _resolve_entity(self, data: dict) -> EntityModel:
+    def _resolve_entity(self, data: dict, is_draft: bool = False) -> EntityModel:
         """Resolve an entity definition, expanding blocks."""
         name = data["entity"]
 
@@ -274,6 +289,7 @@ class MetadataLoader:
             hooks=hooks,
             label_field=label_field,
             permissions=entity_permissions,
+            is_draft=is_draft,
         )
 
     def _resolve_field(self, data: dict) -> FieldDefinition:

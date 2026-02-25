@@ -2,5 +2,6 @@
 
 from metaforge.persistence.adapter import PersistenceAdapter
 from metaforge.persistence.config import DatabaseConfig, create_adapter
+from metaforge.persistence.draft import DraftAdapter
 
-__all__ = ["PersistenceAdapter", "DatabaseConfig", "create_adapter"]
+__all__ = ["PersistenceAdapter", "DatabaseConfig", "create_adapter", "DraftAdapter"]

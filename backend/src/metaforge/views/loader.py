@@ -32,6 +32,11 @@ class ViewConfigLoader:
                     config = self._parse_view_config(data["view"], yaml_file.stem)
                     self.configs[config.id] = config
 
+    def reload(self) -> None:
+        """Reload all view configs from disk, replacing any previously loaded data."""
+        self.configs.clear()
+        self.load_all()
+
     def _parse_view_config(self, data: dict, file_stem: str) -> SavedConfig:
         """Parse a view YAML into a SavedConfig."""
         data_section = data.get("data", {})

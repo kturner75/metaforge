@@ -26,6 +26,11 @@ class ScreenConfigLoader:
                     config = self._parse_screen(data["screen"])
                     self.screens[config.slug] = config
 
+    def reload(self) -> None:
+        """Reload all screen configs from disk, replacing any previously loaded data."""
+        self.screens.clear()
+        self.load_all()
+
     def _parse_screen(self, data: dict) -> ScreenConfig:
         """Parse a screen YAML into a ScreenConfig."""
         nav_data = data.get("nav", {})

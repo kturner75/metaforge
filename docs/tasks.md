@@ -7,6 +7,29 @@ Living task list for the metadata-driven framework. Add new items anywhere.
 - Add new ideas to the Inbox, then triage into the right section.
 - When a feature is done, move it to Completed and summarize key outcomes.
 
+## Outstanding Discussions
+
+### In-App AI Features
+Three distinct use cases identified, need further design before committing to a direction:
+
+1. **Admin config UI** — Structured UI for admins to update DB-layer saved configs (view type, filters, etc.) with optional NL accelerator for complex expressions. Admin-only. Same surface as the DB-level override backlog item.
+2. **Smart search bar** — NL → FilterGroup for any entity list. "Contacts in Texas with no activity this month." Ephemeral or saveable. Narrow LLM task, works well with small/local models. Probably highest value / lowest risk starting point.
+3. **NL dashboard builder** — "Add a pie chart of contacts by company" → generates and appends a panel config. More generative, needs style/field/aggregate context fed to the LLM.
+
+All three would use a model abstraction layer (LiteLLM candidate) to support Ollama local models + Claude/OpenAI. Open questions: which to build first, whether #1 and #3 share a config generation backend.
+
+### App-Specific AI Reasoning Actions
+Concrete use case: DoD budget/funding app where AI recommends how to allocate funds across prioritized requirements, given allotment type rules and expiration dates. Not a NL interface — a specific action button that triggers AI reasoning with structured inputs and structured outputs.
+
+Framework question: can MetaForge support common integration patterns for this without owning the domain logic? Candidates:
+- **AI action registry** — app registers named actions (like hooks) with: context needed, output schema, model preference (reasoning vs fast)
+- **Context assembler** — framework fetches relevant entity data to feed the action using existing metadata system
+- **Output validation** — validate AI output against entity schemas before applying
+- **Review/approve pattern** — AI produces a recommendation, human approves, system applies (not a direct write)
+- **Model routing config** — declarative model selection per action type (local/fast/reasoning)
+
+Open question: how much of this is generic framework vs app-specific glue. Design against this concrete use case when ready.
+
 ## Inbox (Triage Needed)
 - [ ] Database reverse-engineering: `metaforge import db <connection-url>` — introspect an existing database schema and generate MetaForge entity YAML stubs (field types inferred from SQL types, relations inferred from foreign keys, picklists suggested from low-cardinality columns). Output to `metadata/drafts/` for sandbox iteration before promote.
 
@@ -64,7 +87,7 @@ view:
 - [ ] Define metadata schema versioning strategy
 - [x] Add JSON Schema validation for `metadata/` YAML files — 5 JSON Schemas (`_defs`, entity, block, view, screen) using Draft 2020-12 with cross-schema `$ref` via `referencing` registry; `metadata/validator.py` public API (`validate_yaml_file`, `validate_metadata_dir`) with PyYAML `on:` bool-key preprocessing; `metaforge metadata validate` CLI enhanced with `--strict` and `--path` flags; startup validation in `api/app.py` lifespan (warns but doesn't block); 35 tests in `test_metadata_validator.py`
 - [ ] Add metadata migration mechanism (handle schema changes across versions)
-- [ ] Build CLI scaffolding for new entities/fields (`metaforge new entity Foo`)
+- [x] Build CLI scaffolding for new entities/fields (`metaforge new entity Foo`) — `cli/new_cmd.py`; generates entity, screen, grid, form, and detail YAML; supports all field types, `--tenant/--no-tenant`, `--dry-run`, `--force`, conflict detection; 25 tests in `test_new_cmd.py`
 
 ## Backend Entity Framework
 - [x] Hook system (pre/post save, validation, transform callbacks) — ADR-0009 implemented: `HookRegistry`, `HookService`, `HookContext`/`HookResult` types, `@hook` decorator, metadata-declared hooks with `on:`/`when:` filtering, 4 hook points (beforeSave, afterSave, afterCommit, beforeDelete), transaction management (`create_no_commit`/`update_no_commit`/`delete_no_commit`/`commit`/`rollback`), wired into all CRUD endpoints
@@ -96,6 +119,7 @@ view:
 ## Auth & Permissions
 - [ ] Row-level access policies
 - [ ] Admin UI for managing roles and permissions
+- [ ] Gate `POST /api/admin/metadata/reload` behind admin role check — currently no auth enforcement; any request can trigger a hot-reload (safe for local dev, but must be protected before any network exposure)
 
 ## UI Component Configuration (ADR-0008)
 
@@ -138,6 +162,7 @@ view:
 ### Cross-Cutting
 - [x] DrillDown: context-passing from summary views to detail views — clicking bar/pie/funnel chart segments navigates to the entity list pre-filtered by that dimension; dismissible filter badge shown in list view; location state preserves clean URLs
 - [ ] Structured config editor UI (view/edit saved configs without AI)
+- [ ] DB-level entity UI overrides: allow users with the right permissions to override the default view type (and other UI options) for an entity at runtime, scoped to global/tenant/role/user — e.g. a tenant admin sets the Contacts list to kanban for their whole tenant without touching YAML. Resolution engine already supports this precedence; needs UI + permission gating.
 
 ## Entity Design Sandbox (ADR-0013)
 
@@ -178,7 +203,7 @@ The seamless path from AI brainstorm conversation to running, promotable entity.
 - [ ] Scoping UX: personal / team / role / global with permission checks
 
 ## DX / Tooling
-- [ ] CLI scaffolding for new entities/fields (`metaforge new entity Foo`)
+- [x] CLI scaffolding for new entities/fields (`metaforge new entity Foo`) — see Metadata Core above
 - [ ] Metadata editor (basic UI for editing YAML)
 - [ ] Dev server watch for metadata changes (auto-reload on YAML edit)
 - [ ] Test fixtures generated from metadata

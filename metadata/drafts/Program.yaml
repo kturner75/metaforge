@@ -1,0 +1,110 @@
+entity: Program
+displayName: Program
+pluralName: Programs
+abbreviation: PGM
+labelField: name
+description: "An acquisition or budget program. Holds the accounting anchor (element number, treasury account) that Allotments must reference."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Program Name
+    validation:
+      required: true
+
+  - name: elementNumber
+    type: text
+    displayName: Element Number
+    description: "Program Element (PE) number — the primary budget identifier (e.g., 0605013F)"
+
+  - name: missionId
+    type: relation
+    displayName: Mission
+    relation:
+      entity: Mission
+      displayField: name
+    validation:
+      required: true
+
+  - name: organizationId
+    type: relation
+    displayName: Managing Organization
+    description: "Program Management Office or directorate responsible for this program"
+    relation:
+      entity: Organization
+      displayField: name
+    validation:
+      required: true
+
+  - name: treasuryAccountId
+    type: relation
+    displayName: Treasury Account
+    relation:
+      entity: TreasuryAccount
+      displayField: shortName
+    validation:
+      required: true
+
+  - name: programType
+    type: picklist
+    displayName: Program Type
+    options:
+      - value: standard
+        label: Standard
+      - value: fms
+        label: FMS
+      - value: awcf
+        label: AWCF
+      - value: other
+        label: Other
+    default: standard
+    validation:
+      required: true
+
+  - name: startFY
+    type: number
+    displayName: Start Fiscal Year
+    validation:
+      required: true
+
+  - name: endFY
+    type: number
+    displayName: End Fiscal Year
+    description: "Last fiscal year in scope; null = open-ended"
+
+  - name: description
+    type: description
+    displayName: Description
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+      - value: archived
+        label: Archived
+    default: active
+    validation:
+      required: true
+
+  - name: healthStatus
+    type: picklist
+    displayName: Health Status
+    options:
+      - value: green
+        label: Green
+      - value: yellow
+        label: Yellow
+      - value: red
+        label: Red
+    default: green

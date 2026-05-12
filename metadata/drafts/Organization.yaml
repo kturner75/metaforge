@@ -1,0 +1,68 @@
+entity: Organization
+displayName: Organization
+pluralName: Organizations
+abbreviation: ORG
+labelField: name
+description: "A DoD organizational unit in the funding hierarchy (Service, Command, PEO, Program Office, etc.)"
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Organization Name
+    validation:
+      required: true
+
+  - name: abbreviation
+    type: text
+    displayName: Abbreviation
+    description: "Short identifier (e.g., AFMC, PEO CS&CSS, NAVSEA)"
+
+  - name: type
+    type: picklist
+    displayName: Organization Type
+    options:
+      - value: service
+        label: Service
+      - value: command
+        label: Command
+      - value: peo
+        label: PEO
+      - value: program_office
+        label: Program Office
+      - value: directorate
+        label: Directorate
+      - value: other
+        label: Other
+    validation:
+      required: true
+
+  - name: parentId
+    type: relation
+    displayName: Parent Organization
+    relation:
+      entity: Organization
+      displayField: name
+      onDelete: setNull
+
+  - name: description
+    type: description
+    displayName: Description
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+    default: active
+    validation:
+      required: true

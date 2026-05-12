@@ -1,0 +1,33 @@
+entity: TaskAllotment
+displayName: Task Allotment
+pluralName: Task Allotments
+abbreviation: TSAL
+labelField: taskId
+description: "Junction entity linking Tasks to Allotments (many-to-many). A Task may draw funding from multiple Allotments."
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: taskId
+    type: relation
+    displayName: Task
+    relation:
+      entity: Task
+      displayField: name
+    validation:
+      required: true
+
+  - name: allotmentId
+    type: relation
+    displayName: Allotment
+    relation:
+      entity: Allotment
+      displayField: name
+    validation:
+      required: true
+
+  - name: notes
+    type: text
+    displayName: Notes

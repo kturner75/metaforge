@@ -1,0 +1,64 @@
+entity: Project
+displayName: Project
+pluralName: Projects
+abbreviation: PROJ
+labelField: name
+description: "An organizational container for grouping related Allotments and Tasks. No required common Program or funding type — purely a flexible grouping construct."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Project Name
+    validation:
+      required: true
+
+  - name: organizationId
+    type: relation
+    displayName: Organization
+    description: "Org responsible for or owning this project grouping"
+    relation:
+      entity: Organization
+      displayField: name
+    validation:
+      required: true
+
+  - name: description
+    type: description
+    displayName: Description
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+      - value: archived
+        label: Archived
+    default: active
+    validation:
+      required: true
+
+  - name: healthStatus
+    type: picklist
+    displayName: Health Status
+    options:
+      - value: green
+        label: Green
+      - value: yellow
+        label: Yellow
+      - value: red
+        label: Red
+    default: green
+
+  - name: notes
+    type: text
+    displayName: Notes

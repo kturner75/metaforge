@@ -172,22 +172,23 @@ The seamless path from AI brainstorm conversation to running, promotable entity.
 - [x] Draft metadata loader — `is_draft: bool` field on `EntityModel`; `MetadataLoader._load_entities_from_dir()` helper scans both `entities/` and `drafts/`; draft entities excluded from `db.initialize_entity` at startup; `isDraft` exposed in `GET /api/metadata` and `GET /api/metadata/{entity}`; 13 tests in `test_metadata_loader.py`; `metadata/drafts/` directory created
 - [x] Draft DB isolation — `DraftAdapter(SQLiteAdapter)` in `persistence/draft.py` with `from_base_path()` factory; `draft_db` + `draft_lifecycle_factory` globals in `api/app.py` and `mcp/bootstrap.py`; `_resolve_adapter`/`_resolve_lifecycle` helpers route each CRUD/query/aggregate request to the right DB based on `entity_model.is_draft`; `draft_db` closed on shutdown; `MetaForgeServices` updated; 13 tests in `test_draft_adapter.py`
 - [x] `metaforge metadata hot-reload` endpoint — `reload()` on `MetadataLoader`, `ViewConfigLoader`, `ScreenConfigLoader`; `POST /api/admin/metadata/reload` recreates entity tables (idempotent), refreshes lifecycle factories, re-upserts view configs; `reload_metadata(services)` free function in `mcp/bootstrap.py`; `view_loader` + `screen_loader` added to `MetaForgeServices`; 19 tests in `test_metadata_reload.py`
-- [ ] Fake data generator — `FakeDataService.generate(entity, count, locale)` using `faker`, respecting field types and picklist values
-- [ ] `promote_entity(name, generate_doc)` — move YAML, run migration, drop draft data, optionally emit reference doc
-- [ ] `dismiss_entity(name)` — delete draft YAML and drop draft table
-- [ ] Entity reference doc generator — produce `docs/entities/{entity}.md` from YAML on promote
+- [x] Fake data generator — `FakeDataService` in `sandbox/fake_data.py` using `faker`; injectable adapter + seed + locale + relation_ids; length/range clamping; read_only field skipping; 36 tests in `test_fake_data.py`
+- [x] `promote_entity(name, generate_doc)` — move YAML to `entities/`, create prod table, drop draft, hot-reload; optional `docs/entities/{name}.md` generation
+- [x] `dismiss_entity(name)` — delete draft YAML, drop draft table, hot-reload
+- [x] Entity reference doc generator — `_generate_doc()` in `SandboxService`; produces Markdown table of fields + validations on promote
 
 ### MCP Tools
-- [ ] `draft_entity(yaml)` MCP tool — write draft YAML, create draft table, hot-reload metadata
-- [ ] `update_draft_entity(name, changes)` MCP tool — patch draft YAML, alter draft table
-- [ ] `generate_fake_data(entity, count)` MCP tool — seed realistic records into draft DB
-- [ ] `promote_entity(name)` MCP tool — full promote flow via MCP
-- [ ] `dismiss_entity(name)` MCP tool — dismiss flow via MCP
+- [x] `draft_entity(yaml)` MCP tool — write draft YAML, create draft table, hot-reload; returns `{entity, isDraft, fields: [...], reloaded}`
+- [x] `update_draft_entity(name, yaml)` MCP tool — replace draft YAML, drop+recreate draft table; YAML validation with clear errors
+- [x] `generate_fake_data(entity, count, locale, seed)` MCP tool — seed realistic records; count 1–500 validated; seed for reproducibility
+- [x] `promote_entity(name)` MCP tool — full promote flow via MCP
+- [x] `dismiss_entity(name)` MCP tool — dismiss flow via MCP
+- [x] Existing CRUD MCP tools (`query_records`, `get_record`, `create/update/delete_record`, `aggregate_records`) route to draft_db for draft entities — 22 tests in `test_mcp_sandbox.py`
 
 ### Frontend
-- [ ] DRAFT badge in sidebar nav for draft entities
-- [ ] Dismissible DRAFT banner on list/detail views for draft entities
-- [ ] Promote / Dismiss actions in DRAFT banner (calls backend, navigates to production entity or list)
+- [x] DRAFT badge in sidebar nav for draft entities
+- [x] Dismissible DRAFT banner on list/detail/create/edit views for draft entities
+- [x] Promote / Dismiss actions in DRAFT banner (invalidates navigation + metadata caches, navigates appropriately)
 
 ## Agent Skills (ADR-0007)
 - [ ] Skill registry and definition schema

@@ -10,6 +10,8 @@ from pathlib import Path
 
 from metaforge.metadata.loader import MetadataLoader
 from metaforge.persistence import DatabaseConfig, DraftAdapter, PersistenceAdapter, create_adapter
+from metaforge.sandbox.fake_data import FakeDataService
+from metaforge.sandbox.service import SandboxService
 from metaforge.validation import (
     UserContext,
     WarningAcknowledgmentService,
@@ -34,6 +36,9 @@ class MetaForgeServices:
     config_store: SavedConfigStore
     view_loader: ViewConfigLoader
     screen_loader: ScreenConfigLoader
+    base_path: Path
+    sandbox: SandboxService | None = None
+    fake_data: FakeDataService | None = None
 
 
 def get_mcp_user_context() -> UserContext | None:
@@ -115,7 +120,7 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
     screen_loader = ScreenConfigLoader(metadata_path / "screens")
     screen_loader.load_all()
 
-    return MetaForgeServices(
+    services = MetaForgeServices(
         metadata_loader=metadata_loader,
         db=db,
         draft_db=draft_db,
@@ -125,7 +130,11 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
         config_store=config_store,
         view_loader=view_loader,
         screen_loader=screen_loader,
+        base_path=base_path,
     )
+    services.sandbox = SandboxService(services, base_path)
+    services.fake_data = FakeDataService()
+    return services
 
 
 def reload_metadata(services: MetaForgeServices) -> dict[str, int]:

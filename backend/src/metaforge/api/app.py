@@ -44,6 +44,8 @@ from metaforge.views import SavedConfigStore, ViewConfigLoader
 from metaforge.views.endpoints import create_views_router
 from metaforge.screens.loader import ScreenConfigLoader
 from metaforge.screens.endpoints import create_screens_router
+from metaforge.sandbox.fake_data import FakeDataService
+from metaforge.sandbox.service import SandboxService
 
 
 # Global instances (initialized on startup)
@@ -59,6 +61,8 @@ config_store: SavedConfigStore | None = None
 view_loader: ViewConfigLoader | None = None
 screen_loader: ScreenConfigLoader | None = None
 hook_service: HookService | None = None
+sandbox_service: SandboxService | None = None
+fake_data_service: FakeDataService | None = None
 
 
 @asynccontextmanager
@@ -66,7 +70,7 @@ async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown."""
     global metadata_loader, db, draft_db, lifecycle_factory, draft_lifecycle_factory
     global acknowledgment_service, jwt_service, password_service, config_store
-    global view_loader, screen_loader, hook_service
+    global view_loader, screen_loader, hook_service, sandbox_service, fake_data_service
 
     # Register validation functions, validators, and hooks
     register_all_builtins()
@@ -173,6 +177,14 @@ async def lifespan(app: FastAPI):
             get_metadata_loader=lambda: metadata_loader,
         )
         app.include_router(auth_router)
+
+    # Initialize sandbox service
+    sandbox_service = SandboxService(
+        _AppServices(metadata_loader, db, draft_db),
+        base_path,
+        reload_fn=_sync_reload_metadata,
+    )
+    fake_data_service = FakeDataService()
 
     yield
 
@@ -437,6 +449,83 @@ async def reload_metadata_endpoint() -> dict[str, Any]:
         "views": view_count,
         "screens": screen_count,
     }
+
+
+# --- Sandbox Endpoints (ADR-0013) ---
+
+
+class _AppServices:
+    """Minimal adapter so SandboxService can use module-level globals."""
+
+    def __init__(self, ml: Any, db_: Any, draft_db_: Any) -> None:
+        self.metadata_loader = ml
+        self.db = db_
+        self.draft_db = draft_db_
+
+
+def _sync_reload_metadata() -> None:
+    """Synchronous metadata reload — called by SandboxService after YAML changes."""
+    global lifecycle_factory, draft_lifecycle_factory
+
+    if not metadata_loader or not db or not draft_db or not view_loader or not screen_loader or not config_store:
+        return
+
+    secret_key = os.environ.get("METAFORGE_SECRET_KEY", "dev-secret-key-change-in-production")
+
+    metadata_loader.reload()
+
+    for entity_name in metadata_loader.list_entities():
+        entity = metadata_loader.get_entity(entity_name)
+        if entity:
+            if entity.is_draft:
+                draft_db.initialize_entity(entity)
+            else:
+                db.initialize_entity(entity)
+
+    lifecycle_factory = EntityLifecycleFactory(db, metadata_loader, secret_key)
+    draft_lifecycle_factory = EntityLifecycleFactory(draft_db, metadata_loader, secret_key)
+
+    view_loader.reload()
+    for cfg in view_loader.list_configs():
+        config_store.upsert_from_yaml(cfg)
+
+    screen_loader.reload()
+
+
+class DraftEntityRequest(BaseModel):
+    yaml: str
+    generateDoc: bool = False
+
+
+@app.post("/api/admin/sandbox/draft")
+def create_draft_entity_endpoint(body: DraftEntityRequest) -> dict[str, Any]:
+    """Write a draft entity YAML, create its table, hot-reload."""
+    if not sandbox_service:
+        raise HTTPException(500, "Sandbox service not initialized")
+    return sandbox_service.draft_entity(body.yaml)
+
+
+@app.post("/api/admin/sandbox/promote/{entity}")
+def promote_entity_endpoint(entity: str, body: DraftEntityRequest | None = None) -> dict[str, Any]:
+    """Promote a draft entity to production."""
+    if not sandbox_service:
+        raise HTTPException(500, "Sandbox service not initialized")
+    generate_doc = body.generateDoc if body else False
+    result = sandbox_service.promote_entity(entity, generate_doc=generate_doc)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/api/admin/sandbox/dismiss/{entity}")
+def dismiss_entity_endpoint(entity: str) -> dict[str, Any]:
+    """Dismiss (delete) a draft entity."""
+    if not sandbox_service:
+        raise HTTPException(500, "Sandbox service not initialized")
+    result = sandbox_service.dismiss_entity(entity)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
 
 
 # --- CRUD Endpoints ---

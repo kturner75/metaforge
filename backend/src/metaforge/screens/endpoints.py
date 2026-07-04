@@ -73,7 +73,10 @@ def _filter_by_permissions(
     return result
 
 
-def _build_navigation(screens: list[ScreenConfig]) -> list[dict[str, Any]]:
+def _build_navigation(
+    screens: list[ScreenConfig],
+    metadata_loader: MetadataLoader | None = None,
+) -> list[dict[str, Any]]:
     """Group screens into navigation sections, sorted by order."""
     sections: dict[str, list[ScreenConfig]] = {}
     for screen in screens:
@@ -92,6 +95,12 @@ def _build_navigation(screens: list[ScreenConfig]) -> list[dict[str, Any]]:
         key=lambda pair: min(s.nav.order for s in pair[1]) if pair[1] else 999,
     )
 
+    def _is_draft(screen: ScreenConfig) -> bool:
+        if metadata_loader and screen.entity_name:
+            entity = metadata_loader.get_entity(screen.entity_name)
+            return entity.is_draft if entity else False
+        return False
+
     return [
         {
             "name": name,
@@ -101,6 +110,7 @@ def _build_navigation(screens: list[ScreenConfig]) -> list[dict[str, Any]]:
                     "label": s.nav.label or s.name,
                     "icon": s.nav.icon,
                     "type": s.type,
+                    "isDraft": _is_draft(s),
                 }
                 for s in section_screens
             ],
@@ -127,7 +137,7 @@ def create_screens_router(
         user_context = _get_user_context(http_request)
         all_screens = _build_all_screens(screen_loader, metadata_loader)
         visible_screens = _filter_by_permissions(all_screens, user_context)
-        sections = _build_navigation(visible_screens)
+        sections = _build_navigation(visible_screens, metadata_loader)
 
         # Default screen: first screen of the first section
         default_screen = "contacts"

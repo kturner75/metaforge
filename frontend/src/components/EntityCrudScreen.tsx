@@ -12,8 +12,9 @@
  * Falls back to legacy routeConfig.ts if no screen metadata exists.
  */
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { FilterGroup } from '@/lib/types'
 import { getRouteBySlug } from '@/lib/routeConfig'
 import { useEntityMetadata, useEntity } from '@/hooks/useApi'
@@ -24,10 +25,77 @@ import { ConfiguredComponent } from './ConfiguredComponent'
 import { WarningDialog } from './WarningDialog'
 import { Breadcrumb } from './Breadcrumb'
 import { getRecordLabel } from '@/lib/entityUtils'
+import { fetchJson } from '@/lib/api'
 import type { ConfigBase } from '@/lib/viewTypes'
 import type { BreadcrumbItem } from './Breadcrumb'
 
 type ScreenMode = 'list' | 'create' | 'edit' | 'detail'
+
+// --- Draft Banner ---
+
+function DraftBanner({ entityName, onDone }: { entityName: string; onDone: (promoted: boolean) => void }) {
+  const queryClient = useQueryClient()
+  const [closed, setClosed] = useState(false)
+
+  const promote = useMutation({
+    mutationFn: () =>
+      fetchJson<{ promoted: boolean }>(`/api/admin/sandbox/promote/${entityName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['navigation'] })
+      queryClient.invalidateQueries({ queryKey: ['metadata'] })
+      onDone(true)
+    },
+  })
+
+  const dismiss = useMutation({
+    mutationFn: () =>
+      fetchJson<{ dismissed: boolean }>(`/api/admin/sandbox/dismiss/${entityName}`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['navigation'] })
+      queryClient.invalidateQueries({ queryKey: ['metadata'] })
+      onDone(false)
+    },
+  })
+
+  if (closed) return null
+
+  return (
+    <div className="draft-banner">
+      <span className="draft-banner-label">DRAFT</span>
+      <span className="draft-banner-text">
+        This entity is in the sandbox. Data is isolated and will not appear in production until promoted.
+      </span>
+      <div className="draft-banner-actions">
+        <button
+          className="promote-btn"
+          onClick={() => promote.mutate()}
+          disabled={promote.isPending || dismiss.isPending}
+        >
+          {promote.isPending ? 'Promoting…' : 'Promote'}
+        </button>
+        <button
+          className="dismiss-btn"
+          onClick={() => dismiss.mutate()}
+          disabled={promote.isPending || dismiss.isPending}
+        >
+          {dismiss.isPending ? 'Dismissing…' : 'Dismiss'}
+        </button>
+        <button className="dismiss-btn" onClick={() => setClosed(true)}>✕</button>
+      </div>
+      {(promote.isError || dismiss.isError) && (
+        <span style={{ color: 'red', fontSize: 12 }}>
+          {String(promote.error || dismiss.error)}
+        </span>
+      )}
+    </div>
+  )
+}
 
 function useScreenMode(): { mode: ScreenMode; id?: string } {
   const { id } = useParams<{ slug: string; id: string }>()
@@ -253,9 +321,25 @@ export function EntityCrudScreen() {
     )
   }
 
+  const isDraft = metadata?.isDraft ?? false
+
+  const handleDraftDone = useCallback(
+    (promoted: boolean) => {
+      if (promoted) {
+        navigate(baseUrl, { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
+    },
+    [navigate, baseUrl]
+  )
+
   // --- Entity CRUD screen type ---
   return (
     <>
+      {isDraft && entityName && (
+        <DraftBanner entityName={entityName} onDone={handleDraftDone} />
+      )}
       {mode === 'list' && (
         <>
           <Breadcrumb items={breadcrumbItems} />

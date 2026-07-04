@@ -57,7 +57,7 @@ export function Sidebar() {
                 key={screen.slug}
                 to={`/${screen.slug}`}
                 className={({ isActive }) =>
-                  `sidebar-link${isActive ? ' active' : ''}`
+                  `sidebar-link${isActive ? ' active' : ''}${screen.isDraft ? ' sidebar-link--draft' : ''}`
                 }
               >
                 {screen.icon && (
@@ -65,7 +65,10 @@ export function Sidebar() {
                     {ICON_MAP[screen.icon] ?? '•'}
                   </span>
                 )}
-                {screen.label}
+                <span className="sidebar-link-label">{screen.label}</span>
+                {screen.isDraft && (
+                  <span className="sidebar-draft-badge">DRAFT</span>
+                )}
               </NavLink>
             ))}
           </div>

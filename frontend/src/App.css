@@ -142,6 +142,85 @@ body {
   color: white;
 }
 
+.sidebar-link-label {
+  flex: 1;
+}
+
+.sidebar-draft-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: #f59e0b;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.sidebar-link.active .sidebar-draft-badge {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* DRAFT banner */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.draft-banner-label {
+  font-weight: 700;
+  background: #f59e0b;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.draft-banner-text {
+  flex: 1;
+  color: #78350f;
+}
+
+.draft-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.draft-banner-actions button {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.draft-banner-actions .promote-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.draft-banner-actions .promote-btn:hover {
+  background: #059669;
+}
+
+.draft-banner-actions .dismiss-btn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.draft-banner-actions .dismiss-btn:hover {
+  background: #e5e7eb;
+}
+
 /* Breadcrumb */
 .breadcrumb {
   display: flex;

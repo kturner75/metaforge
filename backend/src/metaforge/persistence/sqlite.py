@@ -623,6 +623,14 @@ class SQLiteAdapter:
 
         return "", []
 
+    def drop_entity_table(self, entity_name: str) -> None:
+        """Drop the table for an entity (used by the sandbox to discard draft data)."""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+        table_name = self._table_name(entity_name)
+        self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        self.conn.commit()
+
     def _table_name(self, entity_name: str) -> str:
         """Convert entity name to table name."""
         # Simple snake_case conversion

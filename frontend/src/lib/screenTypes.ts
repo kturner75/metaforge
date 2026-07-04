@@ -29,6 +29,7 @@ export interface NavScreenItem {
   label: string
   icon: string | null
   type: string
+  isDraft?: boolean
 }
 
 export interface NavigationResponse {

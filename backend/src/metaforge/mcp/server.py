@@ -29,6 +29,9 @@ mcp = FastMCP(
         "(3) use query_records or aggregate_records to read data, "
         "(4) use create/update/delete_record to write data, "
         "(5) use create_view_config to build live dashboards and views.\n\n"
+        "Entity Design Sandbox (ADR-0013): draft_entity(yaml) → generate_fake_data(entity, count) "
+        "→ iterate with update_draft_entity(name, yaml) → promote_entity(name) or dismiss_entity(name). "
+        "Draft entities appear in the UI with a DRAFT badge immediately after draft_entity().\n\n"
         "Filter format: {\"operator\": \"and\", \"conditions\": ["
         "{\"field\": \"status\", \"operator\": \"eq\", \"value\": \"active\"}]}\n"
         "Filter operators: eq, neq, gt, gte, lt, lte, in, notIn, contains, "
@@ -48,6 +51,20 @@ def _get_services() -> MetaForgeServices:
     if _services is None:
         _services = initialize_services()
     return _services
+
+
+def _resolve_adapter(svc: MetaForgeServices, entity_model: Any) -> Any:
+    """Return draft_db for draft entities, db for production entities."""
+    if entity_model.is_draft:
+        return svc.draft_db
+    return svc.db
+
+
+def _resolve_lifecycle(svc: MetaForgeServices, entity_model: Any) -> Any:
+    """Return the lifecycle factory appropriate for the entity's DB tier."""
+    if entity_model.is_draft:
+        return svc.draft_lifecycle_factory
+    return svc.lifecycle_factory
 
 
 def _serialize_field(field) -> dict[str, Any]:
@@ -178,7 +195,8 @@ def query_records(
     user_context = get_mcp_user_context()
     effective_filter = _apply_tenant_filter(entity_model, user_context, filter)
 
-    result = svc.db.query(
+    adapter = _resolve_adapter(svc, entity_model)
+    result = adapter.query(
         entity_model,
         fields=fields,
         filter=effective_filter,
@@ -186,7 +204,7 @@ def query_records(
         limit=limit,
         offset=offset,
     )
-    result["data"] = svc.db.hydrate_relations(
+    result["data"] = adapter.hydrate_relations(
         result["data"], entity_model, svc.metadata_loader
     )
     return result
@@ -205,7 +223,8 @@ def get_record(entity: str, id: str) -> dict[str, Any]:
     if not entity_model:
         return {"error": f"Entity '{entity}' not found"}
 
-    record = svc.db.get(entity_model, id)
+    adapter = _resolve_adapter(svc, entity_model)
+    record = adapter.get(entity_model, id)
     if not record:
         return {"error": f"Record '{id}' not found in {entity}"}
 
@@ -215,7 +234,7 @@ def get_record(entity: str, id: str) -> dict[str, Any]:
         if record.get("tenantId") and record["tenantId"] != user_context.tenant_id:
             return {"error": f"Record '{id}' not found in {entity}"}
 
-    hydrated = svc.db.hydrate_relations([record], entity_model, svc.metadata_loader)
+    hydrated = adapter.hydrate_relations([record], entity_model, svc.metadata_loader)
     return {"data": hydrated[0] if hydrated else record}
 
 
@@ -247,7 +266,7 @@ def aggregate_records(
     effective_filter = _apply_tenant_filter(entity_model, user_context, filter)
 
     try:
-        return svc.db.aggregate(
+        return _resolve_adapter(svc, entity_model).aggregate(
             entity_model,
             group_by=group_by,
             measures=measures,
@@ -325,18 +344,19 @@ async def create_record(
     user_context = get_mcp_user_context()
 
     # Validation pipeline (same as app.py create_entity)
+    lf = _resolve_lifecycle(svc, entity_model)
     validators = (
-        svc.lifecycle_factory.get_validators(entity_model)
-        + svc.lifecycle_factory.get_relation_validators(entity_model)
+        lf.get_validators(entity_model)
+        + lf.get_relation_validators(entity_model)
     )
-    field_validators = svc.lifecycle_factory.get_field_validators(entity_model)
+    field_validators = lf.get_field_validators(entity_model)
     defaults = (
-        svc.lifecycle_factory.get_static_defaults(entity_model)
-        + svc.lifecycle_factory.get_defaults(entity_model)
+        lf.get_static_defaults(entity_model)
+        + lf.get_defaults(entity_model)
     )
-    auto_fields = svc.lifecycle_factory.get_auto_fields(entity_model)
+    auto_fields = lf.get_auto_fields(entity_model)
 
-    lifecycle = svc.lifecycle_factory.create_lifecycle(entity_model, user_context)
+    lifecycle = lf.create_lifecycle(entity_model, user_context)
     result = await lifecycle.prepare(
         record=data,
         operation=Operation.CREATE,
@@ -383,7 +403,7 @@ async def create_record(
             }
 
     tenant_id = user_context.tenant_id if user_context else None
-    saved = svc.db.create(entity_model, result.record, tenant_id=tenant_id)
+    saved = _resolve_adapter(svc, entity_model).create(entity_model, result.record, tenant_id=tenant_id)
     return {"data": saved}
 
 
@@ -409,7 +429,8 @@ async def update_record(
     if not entity_model:
         return {"error": f"Entity '{entity}' not found"}
 
-    original = svc.db.get(entity_model, id)
+    adapter = _resolve_adapter(svc, entity_model)
+    original = adapter.get(entity_model, id)
     if not original:
         return {"error": f"Record '{id}' not found in {entity}"}
 
@@ -423,15 +444,16 @@ async def update_record(
     # Merge original with updates
     merged_data = {**original, **data}
 
+    lf = _resolve_lifecycle(svc, entity_model)
     validators = (
-        svc.lifecycle_factory.get_validators(entity_model)
-        + svc.lifecycle_factory.get_relation_validators(entity_model)
+        lf.get_validators(entity_model)
+        + lf.get_relation_validators(entity_model)
     )
-    field_validators = svc.lifecycle_factory.get_field_validators(entity_model)
-    defaults = svc.lifecycle_factory.get_defaults(entity_model)  # No static defaults on update
-    auto_fields = svc.lifecycle_factory.get_auto_fields(entity_model)
+    field_validators = lf.get_field_validators(entity_model)
+    defaults = lf.get_defaults(entity_model)  # No static defaults on update
+    auto_fields = lf.get_auto_fields(entity_model)
 
-    lifecycle = svc.lifecycle_factory.create_lifecycle(entity_model, user_context)
+    lifecycle = lf.create_lifecycle(entity_model, user_context)
     result = await lifecycle.prepare(
         record=merged_data,
         operation=Operation.UPDATE,
@@ -478,7 +500,7 @@ async def update_record(
                 "data": result.record,
             }
 
-    saved = svc.db.update(entity_model, id, result.record)
+    saved = adapter.update(entity_model, id, result.record)
     return {"data": saved}
 
 
@@ -495,7 +517,8 @@ async def delete_record(entity: str, id: str) -> dict[str, Any]:
     if not entity_model:
         return {"error": f"Entity '{entity}' not found"}
 
-    record = svc.db.get(entity_model, id)
+    adapter = _resolve_adapter(svc, entity_model)
+    record = adapter.get(entity_model, id)
     if not record:
         return {"error": f"Record '{id}' not found in {entity}"}
 
@@ -507,11 +530,12 @@ async def delete_record(entity: str, id: str) -> dict[str, Any]:
             return {"error": f"Record '{id}' not found in {entity}"}
 
     # Run delete validators
-    all_validators = svc.lifecycle_factory.get_validators(entity_model)
+    lf = _resolve_lifecycle(svc, entity_model)
+    all_validators = lf.get_validators(entity_model)
     delete_validators = [v for v in all_validators if Operation.DELETE in v.on]
 
     if delete_validators:
-        lifecycle = svc.lifecycle_factory.create_lifecycle(entity_model, user_context)
+        lifecycle = lf.create_lifecycle(entity_model, user_context)
         result = await lifecycle.prepare(
             record=record,
             operation=Operation.DELETE,
@@ -528,7 +552,7 @@ async def delete_record(entity: str, id: str) -> dict[str, Any]:
             }
 
     # Handle relation constraints
-    relation_errors = svc.db.handle_delete_relations(entity_model, id, svc.metadata_loader)
+    relation_errors = adapter.handle_delete_relations(entity_model, id, svc.metadata_loader)
     if relation_errors:
         return {
             "valid": False,
@@ -538,7 +562,7 @@ async def delete_record(entity: str, id: str) -> dict[str, Any]:
             ],
         }
 
-    success = svc.db.delete(entity_model, id)
+    success = adapter.delete(entity_model, id)
     if not success:
         return {"error": f"Record '{id}' not found in {entity}"}
 
@@ -637,3 +661,164 @@ def update_view_config(
         return {"error": "Update failed"}
 
     return updated.to_dict()
+
+
+# =============================================================================
+# Entity Design Sandbox Tools (ADR-0013)
+# =============================================================================
+
+
+@mcp.tool()
+def draft_entity(yaml: str) -> dict[str, Any]:
+    """Create a new draft entity from YAML.
+
+    Writes the YAML to metadata/drafts/, creates its table in the draft DB,
+    and hot-reloads metadata so the entity is immediately available in the UI
+    (marked DRAFT).
+
+    Call generate_fake_data next to seed realistic records.
+
+    Args:
+        yaml: Full entity YAML string. Must include an ``entity:`` key with the
+            entity name, an ``abbreviation:`` key, and field definitions.
+
+    Example::
+
+        draft_entity(yaml=\"\"\"
+        entity: Deal
+        abbreviation: DL
+        displayName: Deal
+        pluralName: Deals
+        fields:
+          - name: id
+            type: id
+            primaryKey: true
+          - name: name
+            type: name
+            displayName: Deal Name
+            validation:
+              required: true
+          - name: stage
+            type: picklist
+            displayName: Stage
+            options:
+              - value: prospecting
+                label: Prospecting
+              - value: closed_won
+                label: Closed Won
+          - name: amount
+            type: currency
+            displayName: Amount
+        \"\"\")
+    """
+    svc = _get_services()
+    if not svc.sandbox:
+        return {"error": "Sandbox service not initialized"}
+    return svc.sandbox.draft_entity(yaml)
+
+
+@mcp.tool()
+def update_draft_entity(name: str, yaml: str) -> dict[str, Any]:
+    """Replace an existing draft entity's YAML and recreate its table.
+
+    Draft data is cleared because the schema may have changed. Use this
+    to add fields, rename fields, or update validations after reviewing
+    the initial draft.
+
+    Args:
+        name: Entity name (e.g. ``"Deal"``).
+        yaml: Updated full entity YAML string.
+    """
+    svc = _get_services()
+    if not svc.sandbox:
+        return {"error": "Sandbox service not initialized"}
+    return svc.sandbox.update_draft_entity(name, yaml)
+
+
+@mcp.tool()
+def generate_fake_data(
+    entity: str,
+    count: int = 10,
+    locale: str = "en_US",
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Seed realistic fake records into a draft entity.
+
+    Uses the Faker library to generate field values that respect the entity's
+    field types, picklist options, and validation bounds. Relation fields are
+    left empty when no related records exist in the draft or production DB.
+
+    Args:
+        entity: Entity name (e.g. ``"Deal"``).
+        count: Number of records to generate (1–500; default 10).
+        locale: Faker locale for localized data (default ``"en_US"``).
+            Examples: ``"en_GB"``, ``"de_DE"``, ``"ja_JP"``.
+        seed: Optional integer seed for reproducible output.
+    """
+    if count <= 0:
+        return {"error": "count must be at least 1"}
+    if count > 500:
+        return {"error": "count must not exceed 500"}
+
+    svc = _get_services()
+    if not svc.fake_data:
+        return {"error": "Fake data service not initialized"}
+
+    entity_model = svc.metadata_loader.get_entity(entity)
+    if not entity_model:
+        return {"error": f"Entity '{entity}' not found"}
+    if not entity_model.is_draft:
+        return {"error": f"Entity '{entity}' is not a draft. Fake data only targets draft entities."}
+
+    try:
+        records = svc.fake_data.generate(
+            entity_model,
+            count,
+            svc.draft_db,
+            locale=locale,
+            seed=seed,
+        )
+        return {"generated": True, "entity": entity, "count": len(records), "records": records}
+    except Exception as e:
+        return {"error": f"Fake data generation failed: {e}"}
+
+
+@mcp.tool()
+def promote_entity(name: str, generate_doc: bool = False) -> dict[str, Any]:
+    """Promote a draft entity to production.
+
+    Steps performed automatically:
+    1. Copy YAML from ``metadata/drafts/`` → ``metadata/entities/``
+    2. Create table in the production database
+    3. Delete the draft YAML and drop the draft table
+    4. Hot-reload metadata (DRAFT badge disappears from the UI)
+    5. Optionally write ``docs/entities/{name}.md``
+
+    This action is not automatically reversible. To undo, delete the
+    production YAML and run ``metaforge migrate`` manually.
+
+    Args:
+        name: Entity name to promote (e.g. ``"Deal"``).
+        generate_doc: If True, write a Markdown reference doc to
+            ``docs/entities/{name}.md``.
+    """
+    svc = _get_services()
+    if not svc.sandbox:
+        return {"error": "Sandbox service not initialized"}
+    return svc.sandbox.promote_entity(name, generate_doc=generate_doc)
+
+
+@mcp.tool()
+def dismiss_entity(name: str) -> dict[str, Any]:
+    """Discard a draft entity and all its data.
+
+    Deletes the draft YAML, drops the draft table, and hot-reloads metadata.
+    No production data is affected.
+
+    Args:
+        name: Entity name to dismiss (e.g. ``"Deal"``).
+    """
+    svc = _get_services()
+    if not svc.sandbox:
+        return {"error": "Sandbox service not initialized"}
+    return svc.sandbox.dismiss_entity(name)

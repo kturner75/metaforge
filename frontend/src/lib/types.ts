@@ -57,6 +57,7 @@ export interface EntityMetadata {
   pluralName: string
   primaryKey: string
   labelField: string | null
+  isDraft?: boolean
   operations?: EntityOperations
   fields: FieldMetadata[]
 }

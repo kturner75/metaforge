@@ -1,7 +1,7 @@
 # ADR-0013: AI-Assisted Entity Design Sandbox
 
 ## Status
-Proposed
+Accepted — implemented in `backend/src/metaforge/sandbox/`, PR #10
 
 ## Context
 

@@ -157,12 +157,266 @@ metaforge mcp                            # CLI entry point
 }
 ```
 
-### Tools (12 total)
+### Tools (17 total)
 - **Discovery**: `list_entities`, `get_entity_metadata`
 - **Read**: `query_records`, `get_record`, `aggregate_records`, `list_view_configs`, `get_view_config`
 - **Write**: `create_record`, `update_record`, `delete_record`, `create_view_config`, `update_view_config`
+- **Sandbox**: `draft_entity`, `update_draft_entity`, `generate_fake_data`, `promote_entity`, `dismiss_entity`
 
 ### Key Files
 - `backend/src/metaforge/mcp/bootstrap.py` — Service initialization
 - `backend/src/metaforge/mcp/server.py` — FastMCP tool definitions
 - `backend/src/metaforge/mcp/__main__.py` — Entry point
+
+## Entity Design Sandbox (ADR-0013)
+
+The sandbox is the primary workflow for designing new entities. Use it whenever you are adding an entity to an application built on MetaForge. Do not go straight to writing YAML files in `metadata/entities/` — draft first, iterate visually, then promote.
+
+### When to use draft vs. scaffold
+
+| Situation | Use |
+|-----------|-----|
+| Designing a new entity whose shape is uncertain | `draft_entity` via MCP — iterate until it feels right, then promote |
+| Adding a field to an existing production entity | Edit the YAML directly + `metaforge migrate generate && apply` |
+| Scaffolding boilerplate for a well-understood entity | `metaforge new entity Foo` (CLI), then refine the YAML |
+| Rebuilding a draft from scratch | `dismiss_entity` then `draft_entity` again — no migration cleanup needed |
+
+### The design loop
+
+```
+1. draft_entity(yaml)          → entity appears in UI with DRAFT badge, empty table
+2. generate_fake_data(name, N) → table fills with realistic records; check the UI
+3. update_draft_entity(name, yaml)  → iterate: add fields, tighten validations, rename
+   (repeat 2–3 until satisfied)
+4a. promote_entity(name)       → YAML moves to entities/, table created in prod DB, DRAFT badge gone
+4b. dismiss_entity(name)       → draft YAML + table deleted, no trace left
+```
+
+Start the dev server and keep the app open in a browser while running these tools. Changes are visible immediately after each call — no server restart required.
+
+### Prerequisites
+
+Both the backend dev server and the MCP server must be running:
+
+```bash
+# Terminal 1 — backend API
+cd backend && uvicorn metaforge.api:app --reload
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+
+# Claude Desktop — MCP server runs via stdio (configured in claude_desktop_config.json)
+```
+
+### Minimal valid entity YAML
+
+Every entity needs `entity`, `abbreviation`, `displayName`, `pluralName`, and at least an `id` field. The abbreviation becomes the ID prefix (e.g. `DL` → `DL-00001`).
+
+```yaml
+entity: Deal
+abbreviation: DL
+displayName: Deal
+pluralName: Deals
+fields:
+  - name: id
+    type: id
+    displayName: ID
+    primaryKey: true
+  - name: name
+    type: name
+    displayName: Deal Name
+    validation:
+      required: true
+```
+
+### Common entity archetypes with example YAML
+
+#### Reference / lookup table (picklist source)
+Short, stable list. No audit trail needed. Self-contained.
+
+```yaml
+entity: Industry
+abbreviation: IND
+displayName: Industry
+pluralName: Industries
+fields:
+  - name: id
+    type: id
+    displayName: ID
+    primaryKey: true
+  - name: name
+    type: name
+    displayName: Industry Name
+    validation:
+      required: true
+      maxLength: 100
+  - name: code
+    type: text
+    displayName: Code
+    validation:
+      required: true
+      maxLength: 10
+      pattern: '^[A-Z0-9]+$'
+```
+
+#### Core business entity (picklists + relations + audit trail)
+Most application entities look like this. Use `blocks: [AuditTrail]` for created/updated timestamps.
+
+```yaml
+entity: Deal
+abbreviation: DL
+displayName: Deal
+pluralName: Deals
+blocks:
+  - AuditTrail
+fields:
+  - name: id
+    type: id
+    displayName: ID
+    primaryKey: true
+  - name: name
+    type: name
+    displayName: Deal Name
+    validation:
+      required: true
+  - name: stage
+    type: picklist
+    displayName: Stage
+    validation:
+      required: true
+    options:
+      - value: prospecting
+        label: Prospecting
+      - value: qualifying
+        label: Qualifying
+      - value: proposal
+        label: Proposal
+      - value: closed_won
+        label: Closed Won
+      - value: closed_lost
+        label: Closed Lost
+  - name: amount
+    type: currency
+    displayName: Amount
+  - name: closeDate
+    type: date
+    displayName: Close Date
+  - name: contactId
+    type: relation
+    displayName: Contact
+    relation:
+      entity: Contact
+      displayField: fullName
+      onDelete: setNull
+  - name: companyId
+    type: relation
+    displayName: Company
+    relation:
+      entity: Company
+      displayField: name
+      onDelete: setNull
+```
+
+#### Hierarchical entity (self-referential parent)
+Used for org charts, categories, account hierarchies.
+
+```yaml
+entity: OrgUnit
+abbreviation: OU
+displayName: Org Unit
+pluralName: Org Units
+fields:
+  - name: id
+    type: id
+    displayName: ID
+    primaryKey: true
+  - name: name
+    type: name
+    displayName: Name
+    validation:
+      required: true
+  - name: type
+    type: picklist
+    displayName: Type
+    options:
+      - value: division
+        label: Division
+      - value: department
+        label: Department
+      - value: team
+        label: Team
+  - name: parentId
+    type: relation
+    displayName: Parent Unit
+    relation:
+      entity: OrgUnit
+      displayField: name
+      onDelete: setNull
+```
+
+#### Junction / M2M table
+No display name needed beyond the two FK fields. Minimal fields.
+
+```yaml
+entity: TaskAllotment
+abbreviation: TSAL
+displayName: Task Allotment
+pluralName: Task Allotments
+fields:
+  - name: id
+    type: id
+    displayName: ID
+    primaryKey: true
+  - name: taskId
+    type: relation
+    displayName: Task
+    relation:
+      entity: Task
+      displayField: name
+      onDelete: cascade
+    validation:
+      required: true
+  - name: allotmentId
+    type: relation
+    displayName: Allotment
+    relation:
+      entity: Allotment
+      displayField: name
+      onDelete: cascade
+    validation:
+      required: true
+  - name: amount
+    type: currency
+    displayName: Amount
+```
+
+### Generating fake data for relations
+
+If an entity has relation fields, draft and seed the *target* entities first so `generate_fake_data` can pick real IDs:
+
+```
+draft_entity(yaml=COMPANY_YAML)
+generate_fake_data("Company", count=5)
+
+draft_entity(yaml=CONTACT_YAML)   # has companyId relation
+generate_fake_data("Contact", count=20)  # picks from the 5 companies
+```
+
+### After promote: add a screen YAML
+
+Promote creates the entity but not a screen. Add a screen YAML to get it into the nav:
+
+```yaml
+# metadata/screens/deals.yaml
+slug: deals
+name: Deals
+type: entity
+entityName: Deal
+nav:
+  section: Sales
+  order: 2
+  label: Deals
+  icon: dollar-sign
+```
+
+Then `POST /api/admin/metadata/reload` (or restart the server) to pick it up.

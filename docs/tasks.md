@@ -119,7 +119,7 @@ view:
 ## Auth & Permissions
 - [ ] Row-level access policies
 - [ ] Admin UI for managing roles and permissions
-- [ ] Gate `POST /api/admin/metadata/reload` behind admin role check — currently no auth enforcement; any request can trigger a hot-reload (safe for local dev, but must be protected before any network exposure)
+- [ ] Gate all `/api/admin/*` endpoints behind admin role check — `POST /api/admin/metadata/reload`, `POST /api/admin/sandbox/draft`, `POST /api/admin/sandbox/promote/{entity}`, `POST /api/admin/sandbox/dismiss/{entity}` currently have no auth enforcement; any request can trigger hot-reloads or promote/destroy draft entities (safe for local dev, must be protected before any network exposure)
 
 ## UI Component Configuration (ADR-0008)
 

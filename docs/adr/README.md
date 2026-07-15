@@ -15,10 +15,10 @@ This directory contains Architecture Decision Records (ADRs) for MetaForge.
 | [0007](0007-agent-skills.md) | Agent Skills Architecture | Accepted |
 | [0008](0008-ui-component-configuration.md) | UI Component Configuration Model | Accepted |
 | [0009](0009-hook-system.md) | Entity Lifecycle Hook System | Accepted |
-| [0010](0010-auth-permissions-model.md) | Declarative Auth & Permissions Model | Proposed |
+| [0010](0010-auth-permissions-model.md) | Declarative Auth & Permissions Model | Accepted (partial) |
 | [0011](0011-navigation-screen-metadata.md) | Navigation & Screen Metadata | Accepted |
-| [0012](0012-persistence-migrations.md) | Persistence & Migrations Strategy | Proposed |
-| [0013](0013-entity-design-sandbox.md) | AI-Assisted Entity Design Sandbox | Proposed |
+| [0012](0012-persistence-migrations.md) | Persistence & Migrations Strategy | Accepted (partial) |
+| [0013](0013-entity-design-sandbox.md) | AI-Assisted Entity Design Sandbox | Accepted |
 
 ## Creating New ADRs
 

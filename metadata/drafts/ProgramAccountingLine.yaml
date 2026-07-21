@@ -1,0 +1,72 @@
+entity: ProgramAccountingLine
+displayName: Program Accounting Line
+pluralName: Program Accounting Lines
+abbreviation: PAL
+labelField: label
+description: "Execution system accounting keys for a Program. One program may have multiple lines for different systems (e.g., a GFEBS line and an FMS line)."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: programId
+    type: relation
+    displayName: Program
+    relation:
+      entity: Program
+      displayField: name
+    validation:
+      required: true
+
+  - name: system
+    type: picklist
+    displayName: Execution System
+    options:
+      - value: gfebs
+        label: GFEBS
+      - value: fms
+        label: FMS
+      - value: other
+        label: Other
+    validation:
+      required: true
+
+  - name: label
+    type: text
+    displayName: Label
+    description: "Optional human-readable identifier for this line (e.g., 'Primary GFEBS', 'Saudi FMS')"
+
+  # GFEBS fields
+  - name: ssnElement
+    type: text
+    displayName: SSN/Element
+    description: "GFEBS Standard Study Number or element identifier"
+
+  - name: fund
+    type: text
+    displayName: Fund
+    description: "GFEBS fund code"
+
+  - name: budgetSubactivity
+    type: text
+    displayName: Budget Sub-Activity
+    description: "Budget sub-activity code (e.g., BA-07)"
+
+  # FMS fields
+  - name: caseDesignator
+    type: text
+    displayName: Case Designator
+    description: "FMS case designator (country code + case number, e.g., SA-D-SAA)"
+
+  - name: caseLineNumber
+    type: text
+    displayName: Case Line Number
+    description: "FMS case line number"
+
+  - name: notes
+    type: text
+    displayName: Notes

@@ -1,0 +1,105 @@
+entity: TreasuryAccount
+displayName: Treasury Account
+pluralName: Treasury Accounts
+abbreviation: TAS
+labelField: shortName
+description: "Reference data identifying a DoD appropriation account (TAS). Drives which accounting key fields are applicable to associated Programs."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Name
+    description: "Full account title (e.g., Army Research Development Test & Evaluation)"
+    validation:
+      required: true
+
+  - name: shortName
+    type: text
+    displayName: Short Name
+    description: "Abbreviated display name (e.g., Army RDT&E)"
+    validation:
+      required: true
+
+  - name: code
+    type: text
+    displayName: Account Code
+    description: "Treasury account symbol / appropriation code"
+    validation:
+      required: true
+
+  - name: availabilityType
+    type: picklist
+    displayName: Availability Type
+    description: "How long appropriated funds remain available for obligation"
+    options:
+      - value: annual
+        label: Annual
+      - value: multi_year
+        label: Multi-Year
+      - value: no_year
+        label: No-Year
+    validation:
+      required: true
+
+  - name: availabilityPeriod
+    type: number
+    displayName: Availability Period (Years)
+    description: "Number of years funds are available; only meaningful for multi-year accounts"
+
+  - name: beaCategory
+    type: picklist
+    displayName: BEA Category
+    options:
+      - value: discretionary
+        label: Discretionary
+      - value: mandatory
+        label: Mandatory
+
+  - name: onOffBudget
+    type: picklist
+    displayName: On/Off Budget
+    options:
+      - value: on_budget
+        label: On-Budget
+      - value: off_budget
+        label: Off-Budget
+
+  # Field visibility drivers — indicate which Program accounting fields apply
+  # for programs under this treasury account
+  - name: showSsnElement
+    type: checkbox
+    displayName: Programs Have SSN/Element
+    default: false
+
+  - name: showBudgetSubactivity
+    type: checkbox
+    displayName: Programs Have Budget Sub-Activity
+    default: false
+
+  - name: showFmsFields
+    type: checkbox
+    displayName: Programs May Have FMS Case/Line
+    default: false
+
+  - name: description
+    type: description
+    displayName: Description
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+    default: active
+    validation:
+      required: true

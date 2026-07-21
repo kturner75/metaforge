@@ -1,0 +1,114 @@
+entity: Task
+displayName: Task
+pluralName: Tasks
+abbreviation: TASK
+labelField: name
+description: "An executable work item funded by one or more Allotments. The lowest level of the funding hierarchy."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Task Name
+    validation:
+      required: true
+
+  - name: projectId
+    type: relation
+    displayName: Project
+    description: "Optional grouping container; independent of Allotment-level project association"
+    relation:
+      entity: Project
+      displayField: name
+
+  - name: vendorId
+    type: relation
+    displayName: Vendor
+    description: "Contracting vendor"
+    relation:
+      entity: Vendor
+      displayField: name
+
+  - name: performingVendorId
+    type: relation
+    displayName: Performing Vendor
+    description: "Vendor actually performing the work, if different from contracting vendor"
+    relation:
+      entity: Vendor
+      displayField: name
+
+  - name: executionYear
+    type: number
+    displayName: Execution Year
+    description: "Fiscal year in which this task is being executed (may differ from appropriation year)"
+
+  - name: referenceNumber
+    type: text
+    displayName: Reference Number
+    description: "Contract or document reference number"
+
+  # Funding amounts
+  - name: requirement
+    type: currency
+    displayName: Requirement
+    description: "Stated funding requirement for this task"
+
+  - name: fundedAmount
+    type: currency
+    displayName: Funded Amount
+
+  - name: allottedAmount
+    type: currency
+    displayName: Allotted Amount
+    description: "Amount actually allotted to this task across its Allotments"
+
+  # Dates
+  - name: awardDate
+    type: date
+    displayName: Award Date
+
+  - name: startDate
+    type: date
+    displayName: Start Date
+
+  - name: endDate
+    type: date
+    displayName: End Date
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: draft
+        label: Draft
+      - value: active
+        label: Active
+      - value: complete
+        label: Complete
+      - value: cancelled
+        label: Cancelled
+    default: draft
+    validation:
+      required: true
+
+  - name: healthStatus
+    type: picklist
+    displayName: Health Status
+    options:
+      - value: green
+        label: Green
+      - value: yellow
+        label: Yellow
+      - value: red
+        label: Red
+    default: green
+
+  - name: description
+    type: description
+    displayName: Description

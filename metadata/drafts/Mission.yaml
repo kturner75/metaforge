@@ -1,0 +1,93 @@
+entity: Mission
+displayName: Mission
+pluralName: Missions
+abbreviation: MSN
+labelField: name
+description: "A strategic capability area or mission that Programs are organized under"
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Mission Name
+    validation:
+      required: true
+
+  - name: missionCode
+    type: text
+    displayName: Mission Code
+    description: "Unique alphanumeric identifier (e.g., PE 0605013F)"
+
+  - name: type
+    type: picklist
+    displayName: Mission Type
+    options:
+      - value: rdte
+        label: "RDT&E"
+      - value: procurement
+        label: Procurement
+      - value: om
+        label: "O&M"
+      - value: milcon
+        label: MILCON
+      - value: other
+        label: Other
+    validation:
+      required: true
+
+  - name: organizationId
+    type: relation
+    displayName: Organization
+    relation:
+      entity: Organization
+      displayField: name
+    validation:
+      required: true
+
+  - name: startFY
+    type: number
+    displayName: Start Fiscal Year
+    description: "First fiscal year this mission is active (e.g., 2025)"
+    validation:
+      required: true
+
+  - name: endFY
+    type: number
+    displayName: End Fiscal Year
+    description: "Last fiscal year this mission is active; null = open-ended"
+
+  - name: description
+    type: description
+    displayName: Description
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+      - value: archived
+        label: Archived
+    default: active
+    validation:
+      required: true
+
+  - name: healthStatus
+    type: picklist
+    displayName: Health Status
+    options:
+      - value: green
+        label: Green
+      - value: yellow
+        label: Yellow
+      - value: red
+        label: Red
+    default: green

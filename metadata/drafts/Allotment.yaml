@@ -1,0 +1,170 @@
+entity: Allotment
+displayName: Allotment
+pluralName: Allotments
+abbreviation: ALOT
+labelField: name
+description: "A funded budget line scoped to a fiscal year. The central funding record linking Programs and Projects to executable Tasks."
+
+includes:
+  - block: AuditTrail
+
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    displayName: Name
+    validation:
+      required: true
+
+  - name: programId
+    type: relation
+    displayName: Program
+    relation:
+      entity: Program
+      displayField: name
+    validation:
+      required: true
+
+  - name: projectId
+    type: relation
+    displayName: Project
+    description: "Optional grouping container; no required relationship to Program"
+    relation:
+      entity: Project
+      displayField: name
+
+  - name: parentAllotmentId
+    type: relation
+    displayName: Parent Allotment
+    description: "Parent record for sub-allotment structures"
+    relation:
+      entity: Allotment
+      displayField: name
+      onDelete: setNull
+
+  - name: appropriationYear
+    type: number
+    displayName: Appropriation Year
+    description: "Fiscal year this allotment is funded from (e.g., 2026)"
+    validation:
+      required: true
+
+  - name: sourceAppropriationYear
+    type: number
+    displayName: Source Appropriation Year
+    description: "Original FY of the funds when carry-over or cross-year transfer applies"
+
+  # Classification
+  # NOTE: allotmentType and allotmentLevel picklist values below are placeholders —
+  # verify against actual PMADS data before promoting.
+  - name: allotmentType
+    type: picklist
+    displayName: Allotment Type
+    options:
+      - value: direct_cite
+        label: Direct Cite
+      - value: reimbursable
+        label: Reimbursable
+      - value: direct_program
+        label: Direct Program
+      - value: fms
+        label: FMS
+      - value: other
+        label: Other
+    validation:
+      required: true
+
+  - name: allotmentLevel
+    type: picklist
+    displayName: Allotment Level
+    options:
+      - value: level_1
+        label: Level 1
+      - value: level_2
+        label: Level 2
+      - value: level_3
+        label: Level 3
+      - value: level_4
+        label: Level 4
+
+  # Funding amounts — stages in the guidance-to-execution flow
+  - name: guidanceAmount
+    type: currency
+    displayName: Guidance
+
+  - name: releasedAmount
+    type: currency
+    displayName: Released
+
+  - name: authorizedAmount
+    type: currency
+    displayName: Authorized
+
+  - name: withheldAmount
+    type: currency
+    displayName: Withheld
+
+  - name: requirement
+    type: currency
+    displayName: Requirement
+    description: "Stated funding requirement for this allotment"
+
+  # GFEBS execution keys — allotment-level values that may differ from the Program's accounting line
+  - name: gfebsFund
+    type: text
+    displayName: GFEBS Fund
+
+  - name: gfebsSsnElement
+    type: text
+    displayName: GFEBS SSN/Element
+
+  # Status and control
+  - name: taskCostsLocked
+    type: checkbox
+    displayName: Task Costs Locked
+    description: "Prevents further cost updates on child Tasks when true"
+    default: false
+
+  - name: priority
+    type: picklist
+    displayName: Priority
+    options:
+      - value: high
+        label: High
+      - value: medium
+        label: Medium
+      - value: low
+        label: Low
+
+  - name: status
+    type: picklist
+    displayName: Status
+    options:
+      - value: active
+        label: Active
+      - value: inactive
+        label: Inactive
+      - value: closed
+        label: Closed
+    default: active
+    validation:
+      required: true
+
+  - name: healthStatus
+    type: picklist
+    displayName: Health Status
+    options:
+      - value: green
+        label: Green
+      - value: yellow
+        label: Yellow
+      - value: red
+        label: Red
+    default: green
+
+  - name: description
+    type: description
+    displayName: Description

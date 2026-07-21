@@ -17,6 +17,7 @@
         },
         "displayName": { "type": "string" },
         "pluralName": { "type": "string" },
+        "description": { "type": "string" },
         "abbreviation": {
           "type": "string",
           "minLength": 2,

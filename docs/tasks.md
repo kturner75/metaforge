@@ -214,7 +214,7 @@ The seamless path from AI brainstorm conversation to running, promotable entity.
 - [ ] E2E flows for CRUD on a sample entity
 
 ## Documentation
-- [ ] "Getting Started" guide
+- [ ] **"Building an App with MetaForge"** guide — end-to-end walkthrough for creating a new app repo using the framework as a dependency. Should cover: repo setup, installing MetaForge as a local/published package, defining your first entity YAML, running the dev server, registering hooks, and a recommended CLAUDE.md template for app projects so Claude Code has framework context without duplicating MetaForge internals.
 - [ ] Metadata reference doc (field types, validation rules, defaults, blocks)
 - [ ] Field type catalog with examples
 - [ ] API usage examples

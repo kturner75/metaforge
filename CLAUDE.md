@@ -260,15 +260,15 @@ fields:
 ```
 
 #### Core business entity (picklists + relations + audit trail)
-Most application entities look like this. Use `blocks: [AuditTrail]` for created/updated timestamps.
+Most application entities look like this. Use `includes: [{block: AuditTrail}]` for created/updated timestamps.
 
 ```yaml
 entity: Deal
 abbreviation: DL
 displayName: Deal
 pluralName: Deals
-blocks:
-  - AuditTrail
+includes:
+  - block: AuditTrail
 fields:
   - name: id
     type: id

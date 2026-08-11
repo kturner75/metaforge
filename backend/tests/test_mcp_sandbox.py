@@ -106,12 +106,12 @@ def sandbox_services(tmp_path):
             os.environ["DATABASE_URL"] = saved_db_url
 
 
-# Shortcuts to tool functions
-_draft_entity = server_module.draft_entity
-_update_draft_entity = server_module.update_draft_entity
-_generate_fake_data = server_module.generate_fake_data
-_get_entity_metadata = server_module.get_entity_metadata
-_query_records = server_module.query_records
+# Shortcuts to underlying tool functions (via .fn — works in fastmcp 2.x)
+_draft_entity = server_module.draft_entity.fn
+_update_draft_entity = server_module.update_draft_entity.fn
+_generate_fake_data = server_module.generate_fake_data.fn
+_get_entity_metadata = server_module.get_entity_metadata.fn
+_query_records = server_module.query_records.fn
 
 
 # ---------------------------------------------------------------------------

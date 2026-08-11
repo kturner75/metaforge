@@ -1,6 +1,6 @@
 """Tests for MCP server tools.
 
-Tests call the tool functions directly to verify
+Tests call the underlying tool functions directly (via .fn) to verify
 that the service layer integration works correctly.
 """
 
@@ -45,18 +45,18 @@ def services(tmp_path):
 
 
 # Access underlying functions behind @mcp.tool() decorators
-_list_entities = server_module.list_entities
-_get_entity_metadata = server_module.get_entity_metadata
-_query_records = server_module.query_records
-_get_record = server_module.get_record
-_aggregate_records = server_module.aggregate_records
-_list_view_configs = server_module.list_view_configs
-_get_view_config = server_module.get_view_config
-_create_record = server_module.create_record
-_update_record = server_module.update_record
-_delete_record = server_module.delete_record
-_create_view_config = server_module.create_view_config
-_update_view_config = server_module.update_view_config
+_list_entities = server_module.list_entities.fn
+_get_entity_metadata = server_module.get_entity_metadata.fn
+_query_records = server_module.query_records.fn
+_get_record = server_module.get_record.fn
+_aggregate_records = server_module.aggregate_records.fn
+_list_view_configs = server_module.list_view_configs.fn
+_get_view_config = server_module.get_view_config.fn
+_create_record = server_module.create_record.fn
+_update_record = server_module.update_record.fn
+_delete_record = server_module.delete_record.fn
+_create_view_config = server_module.create_view_config.fn
+_update_view_config = server_module.update_view_config.fn
 
 
 # =============================================================================

@@ -38,9 +38,11 @@ metadata: ./metadata        # entities, blocks, views, screens, drafts
 database: sqlite:///./data/metaforge.db   # DATABASE_URL still wins
 draftDatabase: sqlite:///./data/draft.db  # METAFORGE_DRAFT_DB
 migrations: ./migrations
-hooks: benefit_plans.hooks  # imported at startup; modules call @hook
+hooks: benefit_plans.hooks  # installed app package; imported at startup
 validators: benefit_plans.validators
 ```
+
+Relative paths in that file are resolved against the directory that contains the `metaforge.yaml` the resolver found, not against the process cwd. The upward walk can succeed from a nested directory, and a `./data` path must not follow that cwd. This applies to `metadata`, `migrations`, and the SQLite paths in both `database` and `draftDatabase` (including `sqlite:///./data/...`) before either adapter is constructed. Absolute SQLite paths and `postgresql://` URLs stay as written. A relative `DATABASE_URL`, `METAFORGE_DB_PATH`, `METAFORGE_DRAFT_DB`, or `METAFORGE_METADATA_DIR` is anchored the same way.
 
 `METAFORGE_METADATA_DIR` overrides `metadata`. `METAFORGE_SECRET_KEY`, `METAFORGE_DISABLE_AUTH`, `METAFORGE_PORT`, and `METAFORGE_MCP_*` stay as they are. One process binds one app. Tools take no app id; a second app is a second process with a different `METAFORGE_HOME`.
 
@@ -48,15 +50,15 @@ validators: benefit_plans.validators
 
 | Approach | App repo contains | Upgrade |
 |---|---|---|
-| pip package + `metaforge new app` | `metaforge.yaml`, `metadata/`, a small hooks package, migrations, gitignored `data/` | Bump the dependency (git URL until PyPI) |
+| pip package + `metaforge new app` | `metaforge.yaml`, `metadata/`, an installable app package (`pip install -e .`), migrations, gitignored `data/` | Bump the dependency (git URL until PyPI) |
 | Template repo | A copied starter, including glue | Merge from upstream; glue drifts |
 | Git submodule | Framework source and app metadata | Submodule pointer; both trees sit in the agent workspace |
 
-**Recommendation: pip package plus scaffold.** Agents configuring entities from uploaded documents should see the app repo, with framework behavior behind the installed package and the MCP tools. The first app depends on `metaforge @ git+https://github.com/kturner75/metaforge@<ref>` and does not wait on PyPI. `metaforge new app` writes the yaml, empty metadata directories, a hooks module, and a short README — the concrete form of the "Building an App with MetaForge" guide still open in `docs/tasks.md`. Write that guide against the scaffold, after it exists. A template repo can later be a clone of what the scaffold emits. A submodule puts framework source back in the agent workspace, which is the layout this proposal is leaving.
+**Recommendation: pip package plus scaffold.** Agents configuring entities from uploaded documents should see the app repo, with framework behavior behind the installed package and the MCP tools. The first app depends on `metaforge @ git+https://github.com/kturner75/metaforge@<ref>` and does not wait on PyPI. `metaforge new app` writes the yaml, empty metadata directories, an installable app package, and a short README — the concrete form of the "Building an App with MetaForge" guide still open in `docs/tasks.md`. The package is a `pyproject.toml` plus `src/<app>/hooks.py` and `validators.py`. Setup is `pip install -e .` in the same venv as MetaForge. The `metaforge` console script does not put the app root on `sys.path`, so a bare module next to `metaforge.yaml` would not import. An editable install makes `benefit_plans.hooks` a normal import for every entry point that shares that venv, including `python -m metaforge.mcp` in the plugin sketch. Loading hook files by path from the project root would fork import machinery and break imports between app modules. Write the guide against the scaffold, after it exists. A template repo can later be a clone of what the scaffold emits. A submodule puts framework source back in the agent workspace, which is the layout this proposal is leaving.
 
 ## Hooks, custom code, and Layer 2/3
 
-App Python lives in the modules named by `hooks` and `validators`. API startup and MCP startup both import them, so `@hook(...)` and `ValidatorRegistry.register` run in both processes. Framework hooks stay in `register_builtin_hooks()`. Missing hook names keep warn-and-skip until an app turns on strict mode.
+App Python lives in that installed package, in the modules named by `hooks` and `validators`. The API lifespan (`backend/src/metaforge/api/app.py`) and MCP `initialize_services` (`backend/src/metaforge/mcp/bootstrap.py`) both `importlib.import_module` those dotted paths before serving, so `@hook(...)` and `ValidatorRegistry.register` run in both processes. Framework hooks stay in `register_builtin_hooks()`. Missing hook names keep warn-and-skip until an app turns on strict mode.
 
 Layer 2 stays files in the app (`metadata/views`, `metadata/screens`). Layer 3 stays rows in the app database. A future "promote saved config to YAML" writes into that metadata directory, which the sandbox already does for entities.
 
@@ -89,11 +91,11 @@ After that move the framework root has no `metadata/` and no app database. `docs
 
 Each step is its own PR. This repo's layout keeps working through step 3.
 
-1. **Shared resolver.** `metaforge.yaml` plus `METAFORGE_HOME`, `METAFORGE_METADATA_DIR`, and `METAFORGE_DRAFT_DB`. Point the API, MCP bootstrap, `new`, `migrate`, and `metadata validate` at it. No file means today's cwd heuristic.
-2. **App import.** API and MCP import `hooks` and `validators` from the project file. MCP also calls `register_builtin_hooks()`.
+1. **Shared resolver.** `metaforge.yaml` plus `METAFORGE_HOME`, `METAFORGE_METADATA_DIR`, and `METAFORGE_DRAFT_DB`. Point the API, MCP bootstrap, `new`, `migrate`, and `metadata validate` at it. Resolve relative `metadata`, `migrations`, and SQLite `database` / `draftDatabase` paths against the directory that contains the discovered project file. No file means today's cwd heuristic.
+2. **App import.** API lifespan and MCP `initialize_services` both import the installed package named by `hooks` and `validators`. MCP also calls `register_builtin_hooks()`.
 3. **System overlay.** Ship User, Tenant, TenantMembership, and the three blocks (`AuditTrail`, `AddressBlock`, `ContactInfo`) in the wheel; merge them under the app directory.
 4. **Examples.** Move the CRM sample and the PMADS drafts; point dev docs at `examples/crm`; route unknown slugs from navigation metadata alone.
-5. **Scaffold and serve.** `metaforge new app` and `metaforge serve` (API and built shell, one origin). Declare the JSON Schemas as package data so a wheel still validates metadata.
+5. **Scaffold and serve.** `metaforge new app` writes an installable app package (`pyproject.toml`, `pip install -e .`) and `metaforge serve` runs the API and built shell on one origin. Declare the JSON Schemas as package data so a wheel still validates metadata.
 6. **Guide and plugin env.** Write the Building an App guide against the scaffold (the plugin note's open prerequisite). Add `METAFORGE_HOME=${workspaceFolder}` to the plugin `mcp.json` sketch.
 
 ## Open questions

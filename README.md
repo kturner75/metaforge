@@ -16,9 +16,8 @@
 ## 2. Tech Stack (Initial Choices)
 ### Backend
 - Language: Python 3.12+
-- Persistence: Dynamic model generation from metadata at startup (reflect/create tables programmatically).
-    - Start with PostgreSQL (JSONB for complex types like address/attachment).
-- Metadata store: YAML files in `/metadata/` (entities, blocks, views); optional DB table for runtime user-saved views.
+- Persistence: Tables are created from metadata at startup. SQLite is the default (`data/metaforge.db`). Set `DATABASE_URL` to a `postgresql://` URL to use PostgreSQL. Storage types are text, integer, and real (PostgreSQL maps real to double precision). Address and attachment values are stored as text.
+- Metadata store: YAML files in `/metadata/` (entities, blocks, views, screens). Runtime user-saved views live in the database.
 
 ### Frontend
 - Framework: React
@@ -27,13 +26,22 @@
     - Search List, Edit Forms, Data Grids
     - User Configurable Filters, Views that leverage entity metadata
 
-### Local Dev (IntelliJ)
-- Set Project SDK to the repo `.venv` interpreter (`.venv/bin/python`)
-- Run configurations are checked in under `.idea/runConfigurations`:
-  - Backend API (FastAPI via `backend/run_api.py`)
-  - Frontend Dev (`npm run dev`)
-  - Full Stack (compound)
-  - Backend Sanity Check (prints interpreter + verifies `uvicorn`)
+### Local Dev
+Nothing in the project depends on a specific IDE. From the repo root:
+
+```bash
+# Backend (http://localhost:8000)
+cd backend
+pip install -e ".[dev]"
+uvicorn metaforge.api:app --reload
+
+# Frontend (http://localhost:5173), in another shell
+cd frontend
+npm install
+npm run dev
+```
+
+Database URL, seed scripts, and test logins are in [docs/development.md](docs/development.md). Use whatever virtualenv you create; the seed commands below assume a repo-root `.venv`.
 
 ### Auth Setup (Local Dev)
 - Seed a test user + tenant memberships:
@@ -50,52 +58,54 @@ Entities defined in `/metadata/entities/*.yaml`
 
 ```yaml
 entity: Invoice
-displayName: Invoices
-auditable: true  # auto-includes AuditTrail block
+abbreviation: INV
+displayName: Invoice
+pluralName: Invoices
 
 includes:
   - block: AuditTrail
-  - block: AddressBlock
-    prefix: billing_
 
 fields:
   - name: id
-    type: uuid
-    fixed: true
+    type: id
     primaryKey: true
   - name: amount
     type: currency
-    currencyCode: USD
-    validation: { required: true, min: 0 }
+    validation:
+      required: true
+      min: 0
   - name: dueDate
     type: date
-    default: { calculated: "now() + 30 days" }
   - name: status
     type: picklist
-    options: ["pending", "paid", "overdue"]
-    default: "pending"
-  - name: customerName
-    type: string
-    calculated: { expression: "related.Customer.name" }
-    readOnly: true
-  - name: totalWithTax
-    type: number
-    calculated: { expression: "amount * (1 + taxRate)" }
+    options:
+      - { value: pending, label: Pending }
+      - { value: paid, label: Paid }
+      - { value: overdue, label: Overdue }
+    default: pending
+  - name: customerId
+    type: relation
+    relation:
+      entity: Customer
+      displayField: name
+      onDelete: setNull
 
-relations:
-  - name: customer
-    to: Customer
-    type: belongsTo
-    foreignKey: customerId
+defaults:
+  - field: dueDate
+    expression: addDays(today(), 30)
+    policy: if_null
 
-lifecycle:
-  onCreate: ["setCreatedBy"]
-  onUpdate: ["updateUpdatedAt", "recalculateTotals"]
+hooks:
+  beforeSave:
+    - name: recalculateTotals
+      on: [create, update]
 ```
 
-Rich Field Types (registry):
+The loader reads `includes`, `fields`, `defaults`, and `hooks`. It does not read a field-level `calculated` key or an entity-level `lifecycle` block. Computed values are `defaults` expressions (`addDays`, `today`, `concat`, and the other functions in `validation/expressions/builtins.py`). Save and delete side effects are hook declarations (ADR-0009) plus a Python function registered with `@hook`. Relations are `relation` fields, not a top-level `relations` list. Picklist `options` are `{value, label}` objects. `metadata/blocks/address.yaml` still has a `calculated` entry on `latLong`; the loader drops it. An `auditable` flag is stored on the entity model and does not pull in AuditTrail — include the block explicitly.
 
-text, name, description, email, phone, url, checkbox, picklist, multi_picklist, date, datetime, currency, percent, number, address (object), attachment (array<url>), relation
+Rich field types (the registry in `backend/src/metaforge/core/types.py`):
+
+id, uuid, string, name, text, description, email, phone, url, checkbox, boolean, picklist, multi_picklist, date, datetime, currency, percent, number, address, attachment, relation
 
 Blocks (reusable): /metadata/blocks/*.yaml
 
@@ -106,28 +116,26 @@ ContactInfo: firstName, lastName, email, phone
 ## 4. Persistence & API Contract
 
 Adapter interface: Load metadata → generate tables/models → CRUD + query.
-Generic endpoint: POST /query/{entity}
-Payload: { fields: [...], filter: {...}, sort: [...], groupBy: [...], aggregate: {sum: "amount"}, limit, offset }
-Resolves calculated/relational fields, rich-type formatting.
+Generic endpoint: `POST /api/query/{entity}`
+Payload: `{ fields, filter, sort, groupBy, aggregate, limit, offset }`
+Relation fields come back with hydrated display values. Formatting follows the field-type registry.
 
-CRUD: Standard REST (POST /entities/{entity}, GET /entities/{entity}/{id}, etc.)
+CRUD: `POST /api/entities/{entity}`, `GET /api/entities/{entity}/{id}`, `PUT` and `DELETE` on the same path.
 Migrations: Alembic diff from metadata changes (preview/apply).
 
 ## 5. UI Components & Self-Service
 
-<EntityGrid entity="Invoice" viewId?="overdue" />
-Props: entity (required), viewId (saved view), fields (override), defaultSort, editable, showAggregates
-Behavior: Introspects metadata → auto columns/formatters/filters/editors (from rich types), TanStack Table under hood.
-User actions: Add/remove columns, set filters/groups/sorts/aggregates → save as view metadata.
+Screens render through the style registry in `frontend/src/components/styles/`. Query grids are `QueryGrid` (`query/grid`). Create and edit use `RecordForm` (`record/form`). A single record uses `RecordDetail` (`record/detail`). Dashboards are YAML for the `compose/dashboard` style (see `metadata/views/contacts-dashboard.yaml`). There is no `EntityDetail` component and no drag-and-drop dashboard builder.
 
-<EntityForm entity="Invoice" /> for create/edit (React Hook Form + Zod from metadata)
-<EntityDetail entity="Invoice" id="..." />
-Dashboard configurator: Drag-drop fields, layout → save view metadata.
+`EntityGrid` and `EntityForm` are still in the tree. `EntityGrid` takes `entity`, plus optional `fields`, `defaultFilter`, `defaultSort`, and `onRowClick`. Both render from metadata with `FieldRenderer`. They do not use TanStack Table, React Hook Form, or Zod. Those three packages are listed in `frontend/package.json` and are not imported anywhere under `frontend/src`. Grids are HTML tables. Forms keep field state in React and check constraints from metadata.
+
+Saved views are metadata: YAML files, plus database rows for user-saved configs.
 
 ## 6. AI Integration Hooks
 
-Dev-time CLI/agent: "add-entity Invoice" → prompt for fields/types/blocks → generate YAML + stubs.
-Runtime chat: NL "show overdue invoices by customer" → parse → query payload → render in EntityGrid → optional save view.
+Dev-time: `metaforge new entity`, plus the MCP server (`python -m metaforge.mcp`, or `metaforge mcp`) for metadata, CRUD, and the design sandbox. A proposal for packaging that server with Cursor skills and YAML rules is in [docs/design/cursor-plugin.md](docs/design/cursor-plugin.md).
+
+Runtime natural-language chat (a question turned into a query and a saved view) is not built. The in-product agent-skills runtime in ADR-0007 is accepted and unimplemented.
 
 ## 7. Artifact Structure
 Should be clean and organized for metadata (entities, validators, components, views)

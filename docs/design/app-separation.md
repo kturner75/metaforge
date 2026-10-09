@@ -1,6 +1,6 @@
 # Separating an app from the MetaForge framework
 
-**Status: Proposal.** Design note, not an accepted ADR. A separate app repository owns its metadata, database, and hooks, and depends on MetaForge as a library. The first consumer is a benefit-plan onboarding app, the POC for Engram, whose entities will be configured partly from uploaded documents. Verified against `main` at `c0f86ba`. `docs/design/cursor-plugin.md` is not in this tree; the plugin (MCP server, skills, rules) should use the project file below.
+**Status: Proposal.** Design note, not an accepted ADR. A separate app repository owns its metadata, database, and hooks, and depends on MetaForge as a library. The first consumer is a benefit-plan onboarding app, the POC for Engram, whose entities will be configured partly from uploaded documents. Companion proposal: [`docs/design/cursor-plugin.md`](cursor-plugin.md), a Cursor plugin (`.cursor-plugin/plugin.json`) bundling the existing MCP server, skills `author-entity`, `design-sandbox`, and `add-view-or-screen`, and `rules/entity-yaml.mdc`. This note is the app-root half of that proposal's "not an app dependency yet" prerequisite. Verified against `main` at `0c16367`.
 
 ## Where the coupling is
 
@@ -60,7 +60,7 @@ App Python lives in the modules named by `hooks` and `validators`. API startup a
 
 Layer 2 stays files in the app (`metadata/views`, `metadata/screens`). Layer 3 stays rows in the app database. A future "promote saved config to YAML" writes into that metadata directory, which the sandbox already does for entities.
 
-Skills that turn an uploaded plan document into entity YAML live in the app (`.cursor/skills`) and call `draft_entity` / `update_draft_entity`. Generic skills (query, draft, promote) live in the framework plugin.
+[`docs/design/cursor-plugin.md`](cursor-plugin.md) ships `author-entity`, `design-sandbox`, and `add-view-or-screen`, plus `rules/entity-yaml.mdc` (`globs: metadata/**/*.yaml`). They call the sandbox and write YAML into the workspace `metadata/` tree, which under this proposal is the app's. `add-view-or-screen` writes the screen file `promote_entity` does not. The glob matches an app workspace as written; after the examples move it matches this repo only when the workspace is `examples/crm`, or the glob is widened. A benefit-plan skill that turns an uploaded document into entity YAML stays in the app (`.cursor/skills`) and calls the same sandbox tools. Marketplace plugins have to be open source, so that private schema stays out of the plugin whichever home the plugin note's open question picks (this repo, its own public repo, or a team marketplace).
 
 System metadata ships in the wheel and merges underneath the app directory: `User`, `Tenant`, `TenantMembership`, and the blocks `AuditTrail`, `AddressBlock`, and `ContactInfo` (`metadata/blocks/`). Auth and `includes: [{block: AuditTrail}]` then work without copied files. An app file with the same name replaces the packaged one.
 
@@ -72,7 +72,9 @@ System metadata ships in the wheel and merges underneath the app directory: `Use
 
 ## How MCP, the sandbox, and the plugin find the app
 
-They call the same resolver. The Cursor workspace is the app repo, so the upward walk finds that repo's `metaforge.yaml`. The plugin starts `metaforge mcp` with that cwd, or sets `METAFORGE_HOME`. `initialize_services` already passes `base_path` into `SandboxService`, so drafts and promotes land in the app tree. Running the framework checkout means `METAFORGE_HOME=examples/crm` (or a cwd inside that example). The walk does not search downward into `examples/`.
+They call the same resolver. The Cursor workspace is the app repo, so the upward walk finds that repo's `metaforge.yaml`. `initialize_services` already passes `base_path` into `SandboxService`, so drafts and promotes land in the app tree.
+
+The plugin's `mcp.json` sketch launches `${workspaceFolder}/.venv/bin/python -m metaforge.mcp` and passes only `METAFORGE_MCP_USER_ID`, `METAFORGE_MCP_TENANT_ID`, and `METAFORGE_MCP_ROLE`. Those identity variables stay as sketched. The sketch assumes `metadata/` is at the workspace root, or the process starts in `backend/`, because the plugin reference does not document a stdio `cwd` and it is still open whether `${workspaceFolder}` expands inside a plugin `mcp.json`. Once the resolver exists, that same `env` block should set `METAFORGE_HOME` to `${workspaceFolder}` so the app root does not depend on an undocumented cwd. Until that lands, the plugin note's prerequisite stands. Running this framework checkout means `METAFORGE_HOME=examples/crm` (or a cwd inside that example). The walk does not search downward into `examples/`.
 
 ## What stays here
 
@@ -92,7 +94,7 @@ Each step is its own PR. This repo's layout keeps working through step 3.
 3. **System overlay.** Ship User, Tenant, TenantMembership, and the three blocks (`AuditTrail`, `AddressBlock`, `ContactInfo`) in the wheel; merge them under the app directory.
 4. **Examples.** Move the CRM sample and the PMADS drafts; point dev docs at `examples/crm`; route unknown slugs from navigation metadata alone.
 5. **Scaffold and serve.** `metaforge new app` and `metaforge serve` (API and built shell, one origin). Declare the JSON Schemas as package data so a wheel still validates metadata.
-6. **Guide.** Write the Building an App guide against the scaffold, and point the Cursor plugin at `metaforge.yaml`.
+6. **Guide and plugin env.** Write the Building an App guide against the scaffold (the plugin note's open prerequisite). Add `METAFORGE_HOME=${workspaceFolder}` to the plugin `mcp.json` sketch.
 
 ## Open questions
 
@@ -100,4 +102,4 @@ Each step is its own PR. This repo's layout keeps working through step 3.
 - ADR-0013 also describes a Postgres `draft` schema. The code always uses a SQLite file. Keep SQLite drafts until a second database is actually required?
 - Git-URL dependency until a second consumer, or publish to PyPI in the same step as `new app`?
 - Strict missing-hook behavior as a project-file flag, defaulting to warn?
-- Confirm the plugin ships only generic MetaForge skills, so a private app's plan schema stays in that app's `.cursor/skills`.
+- The plugin's discovery question still gates step 6. If `${workspaceFolder}` does not expand in a plugin `mcp.json`, and stdio has no `cwd`, `METAFORGE_HOME` has to be set another way (a dashboard variable, or a `metaforge.yaml` the process cwd already walks up to).

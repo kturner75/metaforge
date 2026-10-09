@@ -212,6 +212,7 @@ The seamless path from AI brainstorm conversation to running, promotable entity.
 ## Testing
 - [ ] Frontend component tests for core field types
 - [ ] E2E flows for CRUD on a sample entity
+- [ ] Update MCP test suite for fastmcp 3.x API — tests currently access raw function via `.fn` (fastmcp 2.x `FunctionTool` attribute); fastmcp 3.x makes `@tool`-decorated functions plain callables with no `.fn`. `pyproject.toml` pins `fastmcp<3.0.0` as a workaround; the pin should be lifted once tests are ported to the 3.x API. Latest 3.x release: 3.4.7.
 
 ## Documentation
 - [ ] **"Building an App with MetaForge"** guide — end-to-end walkthrough for creating a new app repo using the framework as a dependency. Should cover: repo setup, installing MetaForge as a local/published package, defining your first entity YAML, running the dev server, registering hooks, and a recommended CLAUDE.md template for app projects so Claude Code has framework context without duplicating MetaForge internals.

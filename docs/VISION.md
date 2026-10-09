@@ -263,7 +263,7 @@ These principles guide architectural decisions across the framework:
 ## Current State and Roadmap
 
 ### Built and Working
-- Entity metadata system (5 entities, 3 reusable blocks, 18 field types)
+- Entity metadata system (6 entities in `metadata/entities/`: User, Tenant, TenantMembership, Contact, Company, Category; 3 reusable blocks; 21 field types in `backend/src/metaforge/core/types.py`)
 - Generic CRUD + query + aggregate API endpoints
 - Expression DSL for validation rules and computed defaults
 - 16 presentation styles across 4 data patterns
@@ -271,11 +271,11 @@ These principles guide architectural decisions across the framework:
 - JWT auth, role hierarchy, multi-tenant isolation
 - Config-driven rendering with style inference and context propagation
 - Metadata-driven navigation — screens, sections, permission-aware sidebar
-- MCP server — 12 tools exposing metadata, query, CRUD, and config APIs to external agents (FastMCP, stdio/SSE transports)
+- MCP server — 17 tools (metadata, query, CRUD, view configs, and the five sandbox tools) over stdio or SSE
+- Entity design sandbox (ADR-0013) — draft entities, fake data, promote/dismiss, and an optional Markdown reference doc on promote
 
 ### Designed, Not Yet Built
 - Agent skills framework (ADR-0007) — skill registry, context assembler, output verifier
-- AI-Assisted Entity Design Sandbox (ADR-0013) — draft entities, fake data generation, promote/dismiss flow, MCP design tools
 - Structured config editor UI — view/edit saved configs without AI
 
 ### Planned
@@ -283,4 +283,3 @@ These principles guide architectural decisions across the framework:
 - AI-assisted data analysis with rule-aware reasoning
 - Composable agent workflow definitions
 - Config promotion (Layer 3 → Layer 2)
-- Auto-generated entity reference documentation (on promote)

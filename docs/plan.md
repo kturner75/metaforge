@@ -1,5 +1,16 @@
 # Plan: Aggregate Visualization Styles (Bar Chart, Pie Chart, Summary Grid)
 
+**Status: implemented** (components, registry, CSS, and YAML). This file is the original plan, kept as the design record.
+
+Shipped pieces:
+
+- `frontend/src/components/styles/BarChart.tsx`, `PieChart.tsx`, and `SummaryGrid.tsx`, registered in `frontend/src/components/styles/index.ts` as `aggregate/bar-chart`, `aggregate/pie-chart`, and `aggregate/summary-grid`
+- CSS classes in `frontend/src/App.css`
+- `metadata/views/contact-status-bar.yaml`, `contact-status-pie.yaml`, and `contact-status-summary.yaml`
+- The contacts dashboard composes those views in `metadata/views/contacts-dashboard.yaml` (`compose/dashboard`)
+
+Deliverable 7 below (an Aggregate Styles selector in `App.tsx`) is not in the current UI. `docs/tasks.md` records that selector as finished during config-driven mode. Later compose work deleted the hardcoded dashboard section (`DashboardSection`) and renders charts from YAML. There is no style-selector component under `frontend/src` now.
+
 ## Goal
 Add three new aggregate-pattern presentation styles — **Bar Chart**, **Pie Chart**, and **Summary Grid** — following the same zero-dependency, CSS-only approach used by every existing style in MetaForge.
 

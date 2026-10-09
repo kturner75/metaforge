@@ -36,10 +36,9 @@ PostgreSQL 17 runs via Homebrew. The dev database is `metaforge`:
 # Create the database (first time only)
 createdb metaforge
 
-# Set for your shell session
+# Set for the shell session that starts the backend.
+# The process environment is what the server reads; an IDE run config is optional.
 export DATABASE_URL=postgresql://kevinturner@localhost/metaforge
-
-# Or set it in your JetBrains run configuration environment variables
 ```
 
 ### SQLite (fallback)

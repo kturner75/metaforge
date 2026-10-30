@@ -132,6 +132,68 @@ and optional view config references (`views.list`, `views.detail`, etc.).
 - **Auto-generation**: Entities without screen YAML get default screens in an "Entities" section
 - **Backward compatibility**: `routeConfig.ts` serves as final fallback for entity name resolution
 
+## File Layouts (MF-020)
+
+A **file layout** is metadata describing how a flat file (delimited or fixed-width) maps to and from
+entity values. Layouts live in `metadata/layouts/*.yaml`, are loaded by `LayoutLoader` (wired into
+`api/app.py` and `mcp/bootstrap.py` startup + `/api/admin/metadata/reload`), and validated by
+`layout.schema.json`. The engine works **both directions** and fails loudly on drift.
+
+### Key Files
+- `backend/src/metaforge/layouts/types.py` — dataclasses, `CellLocation` provenance, error types
+- `backend/src/metaforge/layouts/transforms.py` — declarative bidirectional transform registry
+- `backend/src/metaforge/layouts/coercion.py` — string ↔ typed value, keyed on the entity field type
+- `backend/src/metaforge/layouts/reader.py` — `read()` → records + provenance; `LayoutReadError`
+- `backend/src/metaforge/layouts/writer.py` — `write()` → bytes in the same layout
+- `backend/src/metaforge/layouts/loader.py` — `LayoutLoader` + `parse_layout()`
+
+### Usage
+```python
+from metaforge.layouts import LayoutLoader, read, write
+
+loader = LayoutLoader(metadata_path / "layouts"); loader.load_all()
+layout = loader.get_layout("ContactCsv")
+
+result = read(layout, csv_bytes, entity=contact_model)   # file -> records (+ provenance)
+out = write(layout, result.data, entity=contact_model)   # records -> file bytes
+```
+Reading raises `LayoutReadError` (strict, default) on missing/unexpected columns, fixed-width length
+drift, unknown record types, trailer-count mismatch, or uncoercible values; pass `strict=False` to
+collect `ReadResult.errors` instead. For a layout using only invertible transforms,
+`read(write(records)) == records`.
+
+### YAML shape
+```yaml
+layout: ContactCsv          # unique name
+entity: Contact             # target entity (for type coercion)
+format:
+  kind: delimited           # delimited | fixed
+  delimiter: ","            # delimited
+  hasHeader: true
+  # fixed: recordLength, lineTerminator
+mapping:
+  - field: firstName        # entity field
+    column: first_name      # delimited: header name or integer index
+    # fixed:  at: { offset: 0, width: 20 }
+    required: true
+    transform:
+      - trim: {}
+      - dateFormat: { from: "%Y%m%d" }
+    # expression: "upper(trim(value))"   # read escape hatch (DSL; `value` = raw cell)
+    # writeExpression: "lower(value)"    # needed to write an expression field
+```
+
+Multi-record files add a `recordType` selector plus a `records` list (each with `type`, `kind` of
+`data`/`header`/`trailer`, its own `mapping`, and optional `recordCountField` on the trailer). A
+`const` field is a literal (e.g. a record-type marker) and takes a `column`/`at` to tell the writer
+where it belongs.
+
+### Transform catalog (all bidirectional)
+`trim`, `pad` (width/char/side), `dateFormat` (`from`/`to`), `impliedDecimals` (places), `lookup`
+(code↔value map, `default`, `strict`), `upper`, `lower`, `replace`, `default`, `number`. Transforms
+run in order on read and in reverse on write; non-invertible ones (`trim`, case) write as identity.
+See [ADR-0014](docs/adr/0014-file-layout-metadata.md).
+
 ## MCP Server
 
 The MCP (Model Context Protocol) server exposes MetaForge's APIs to AI agents (Claude Desktop, etc.).

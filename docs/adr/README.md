@@ -19,6 +19,7 @@ This directory contains Architecture Decision Records (ADRs) for MetaForge.
 | [0011](0011-navigation-screen-metadata.md) | Navigation & Screen Metadata | Accepted |
 | [0012](0012-persistence-migrations.md) | Persistence & Migrations Strategy | Accepted (partial) |
 | [0013](0013-entity-design-sandbox.md) | AI-Assisted Entity Design Sandbox | Accepted |
+| [0014](0014-file-layout-metadata.md) | File-Layout Metadata (Delimited & Fixed-Width) | Accepted |
 
 ## Creating New ADRs
 

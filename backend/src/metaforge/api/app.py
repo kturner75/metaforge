@@ -42,6 +42,7 @@ from metaforge.auth import (
 from metaforge.auth.endpoints import create_auth_router
 from metaforge.views import SavedConfigStore, ViewConfigLoader
 from metaforge.views.endpoints import create_views_router
+from metaforge.layouts import LayoutLoader
 from metaforge.screens.loader import ScreenConfigLoader
 from metaforge.screens.endpoints import create_screens_router
 from metaforge.sandbox.fake_data import FakeDataService
@@ -59,6 +60,7 @@ jwt_service: JWTService | None = None
 password_service: PasswordService | None = None
 config_store: SavedConfigStore | None = None
 view_loader: ViewConfigLoader | None = None
+layout_loader: LayoutLoader | None = None
 screen_loader: ScreenConfigLoader | None = None
 hook_service: HookService | None = None
 sandbox_service: SandboxService | None = None
@@ -70,7 +72,8 @@ async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown."""
     global metadata_loader, db, draft_db, lifecycle_factory, draft_lifecycle_factory
     global acknowledgment_service, jwt_service, password_service, config_store
-    global view_loader, screen_loader, hook_service, sandbox_service, fake_data_service
+    global view_loader, layout_loader, screen_loader, hook_service
+    global sandbox_service, fake_data_service
 
     # Register validation functions, validators, and hooks
     register_all_builtins()
@@ -153,6 +156,10 @@ async def lifespan(app: FastAPI):
         get_view_loader=lambda: view_loader,
     )
     app.include_router(views_router)
+
+    # Initialize file-layout system (MF-020): load layouts, no HTTP surface yet
+    layout_loader = LayoutLoader(metadata_path / "layouts")
+    layout_loader.load_all()
 
     # Initialize screen configuration system
     screen_loader = ScreenConfigLoader(metadata_path / "screens")
@@ -395,10 +402,11 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
 async def reload_metadata_endpoint() -> dict[str, Any]:
     """Reload all metadata from disk without restarting the server.
 
-    Re-scans metadata/entities/, metadata/drafts/, metadata/views/, and
-    metadata/screens/ directories.  New entity tables are created via
-    ``CREATE TABLE IF NOT EXISTS``; existing tables are left intact.
-    Returns counts of the reloaded entities, view configs, and screens.
+    Re-scans metadata/entities/, metadata/drafts/, metadata/views/,
+    metadata/layouts/, and metadata/screens/ directories.  New entity tables
+    are created via ``CREATE TABLE IF NOT EXISTS``; existing tables are left
+    intact.  Returns counts of the reloaded entities, view configs, file
+    layouts, and screens.
     """
     global lifecycle_factory, draft_lifecycle_factory
 
@@ -439,7 +447,13 @@ async def reload_metadata_endpoint() -> dict[str, Any]:
         config_store.upsert_from_yaml(cfg)
     view_count = len(view_loader.list_configs())
 
-    # 5. Reload screen configs
+    # 5. Reload file layouts (MF-020)
+    layout_count = 0
+    if layout_loader:
+        layout_loader.reload()
+        layout_count = len(layout_loader.list_layouts())
+
+    # 6. Reload screen configs
     screen_loader.reload()
     screen_count = len(screen_loader.list_screens())
 
@@ -447,6 +461,7 @@ async def reload_metadata_endpoint() -> dict[str, Any]:
         "reloaded": True,
         "entities": entity_count,
         "views": view_count,
+        "layouts": layout_count,
         "screens": screen_count,
     }
 

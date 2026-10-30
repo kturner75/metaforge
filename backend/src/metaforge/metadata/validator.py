@@ -47,6 +47,7 @@ _SUBDIR_SCHEMA: dict[str, str] = {
     "blocks": "block.schema.json",
     "views": "view.schema.json",
     "screens": "screen.schema.json",
+    "layouts": "layout.schema.json",
 }
 
 
@@ -86,6 +87,7 @@ def _load_registry() -> Registry:
         "block.schema.json",
         "view.schema.json",
         "screen.schema.json",
+        "layout.schema.json",
     ]
     resources = []
     for name in schema_names:

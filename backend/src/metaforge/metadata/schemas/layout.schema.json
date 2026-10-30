@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "$id": "https://metaforge.dev/schemas/layout.schema.json",
+  "title": "MetaForge File Layout",
+  "description": "Schema for metadata/layouts/*.yaml files (MF-020)",
+  "$ref": "#/$defs/layoutFile",
+  "$defs": {
+    "layoutFile": {
+      "type": "object",
+      "required": ["layout", "format"],
+      "additionalProperties": false,
+      "properties": {
+        "layout": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique layout name"
+        },
+        "entity": {
+          "type": "string",
+          "description": "Target entity name (optional; may be overridden per record type)"
+        },
+        "description": { "type": "string" },
+        "format": { "$ref": "#/$defs/format" },
+        "mapping": {
+          "type": "array",
+          "description": "Single-record-type mapping. Mutually exclusive with 'records'.",
+          "items": { "$ref": "#/$defs/mapping" }
+        },
+        "recordType": {
+          "$ref": "#/$defs/source",
+          "description": "Selector that picks a record type per line (multi-record files)"
+        },
+        "records": {
+          "type": "array",
+          "description": "Record types for multi-record files. Requires 'recordType'.",
+          "items": { "$ref": "#/$defs/recordType" }
+        }
+      },
+      "anyOf": [
+        { "required": ["mapping"] },
+        { "required": ["records", "recordType"] }
+      ]
+    },
+
+    "format": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["delimited", "fixed"] },
+        "delimiter": { "type": "string" },
+        "quote": { "type": "string" },
+        "escape": { "type": "string" },
+        "encoding": { "type": "string" },
+        "hasHeader": { "type": "boolean" },
+        "skipBlankLines": { "type": "boolean" },
+        "recordLength": { "type": "integer", "minimum": 1 },
+        "lineTerminator": { "type": "string" }
+      }
+    },
+
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "type": ["string", "integer"],
+          "description": "Delimited: header name or 0-based index"
+        },
+        "at": {
+          "type": "object",
+          "required": ["offset", "width"],
+          "additionalProperties": false,
+          "properties": {
+            "offset": { "type": "integer", "minimum": 0 },
+            "width": { "type": "integer", "minimum": 1 }
+          },
+          "description": "Fixed-width: 0-based byte slice"
+        }
+      }
+    },
+
+    "recordType": {
+      "type": "object",
+      "required": ["mapping"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": ["string", "integer"],
+          "description": "The selector value that identifies this record type"
+        },
+        "kind": { "type": "string", "enum": ["data", "header", "trailer"] },
+        "entity": { "type": "string" },
+        "recordCountField": {
+          "type": "string",
+          "description": "Trailer only: field whose value is the count of data records"
+        },
+        "mapping": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mapping" }
+        }
+      }
+    },
+
+    "mapping": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "column": { "type": ["string", "integer"] },
+        "at": {
+          "type": "object",
+          "required": ["offset", "width"],
+          "additionalProperties": false,
+          "properties": {
+            "offset": { "type": "integer", "minimum": 0 },
+            "width": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "transform": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/transformStep" }
+        },
+        "expression": {
+          "type": "string",
+          "description": "Read-direction escape hatch (expression DSL); 'value' is the raw cell"
+        },
+        "writeExpression": {
+          "type": "string",
+          "description": "Write-direction escape hatch; 'value' is the field value"
+        },
+        "required": { "type": "boolean" },
+        "default": {},
+        "const": {}
+      }
+    },
+
+    "transformStep": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Transform name with no parameters"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "description": "Single-key mapping of transform name -> parameters"
+        }
+      ]
+    }
+  }
+}

@@ -8,10 +8,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from metaforge.layouts import LayoutLoader
 from metaforge.metadata.loader import MetadataLoader
 from metaforge.persistence import DatabaseConfig, DraftAdapter, PersistenceAdapter, create_adapter
 from metaforge.sandbox.fake_data import FakeDataService
 from metaforge.sandbox.service import SandboxService
+from metaforge.screens.loader import ScreenConfigLoader
 from metaforge.validation import (
     UserContext,
     WarningAcknowledgmentService,
@@ -20,7 +22,6 @@ from metaforge.validation import (
 )
 from metaforge.validation.integration import EntityLifecycleFactory
 from metaforge.views import SavedConfigStore, ViewConfigLoader
-from metaforge.screens.loader import ScreenConfigLoader
 
 
 @dataclass
@@ -35,6 +36,7 @@ class MetaForgeServices:
     acknowledgment_service: WarningAcknowledgmentService
     config_store: SavedConfigStore
     view_loader: ViewConfigLoader
+    layout_loader: LayoutLoader
     screen_loader: ScreenConfigLoader
     base_path: Path
     sandbox: SandboxService | None = None
@@ -116,6 +118,10 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
     for cfg in view_loader.list_configs():
         config_store.upsert_from_yaml(cfg)
 
+    # File layouts (MF-020)
+    layout_loader = LayoutLoader(metadata_path / "layouts")
+    layout_loader.load_all()
+
     # Screen configs
     screen_loader = ScreenConfigLoader(metadata_path / "screens")
     screen_loader.load_all()
@@ -129,6 +135,7 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
         acknowledgment_service=acknowledgment_service,
         config_store=config_store,
         view_loader=view_loader,
+        layout_loader=layout_loader,
         screen_loader=screen_loader,
         base_path=base_path,
     )
@@ -140,12 +147,13 @@ def initialize_services(base_path: Path | None = None) -> MetaForgeServices:
 def reload_metadata(services: MetaForgeServices) -> dict[str, int]:
     """Reload all metadata from disk without reinitializing database connections.
 
-    Re-scans metadata/entities/, metadata/drafts/, metadata/views/, and
-    metadata/screens/.  New entity tables are created via
+    Re-scans metadata/entities/, metadata/drafts/, metadata/views/,
+    metadata/layouts/, and metadata/screens/.  New entity tables are created via
     ``CREATE TABLE IF NOT EXISTS``; existing tables are left intact.
     Lifecycle factories are recreated so they reference the updated metadata.
 
-    Returns a count summary dict with keys ``entities``, ``views``, ``screens``.
+    Returns a count summary dict with keys ``entities``, ``views``,
+    ``layouts``, ``screens``.
     """
     secret_key = os.environ.get(
         "METAFORGE_SECRET_KEY", "dev-secret-key-change-in-production"
@@ -178,8 +186,17 @@ def reload_metadata(services: MetaForgeServices) -> dict[str, int]:
         services.config_store.upsert_from_yaml(cfg)
     view_count = len(services.view_loader.list_configs())
 
-    # 5. Reload screen configs
+    # 5. Reload file layouts (MF-020)
+    services.layout_loader.reload()
+    layout_count = len(services.layout_loader.list_layouts())
+
+    # 6. Reload screen configs
     services.screen_loader.reload()
     screen_count = len(services.screen_loader.list_screens())
 
-    return {"entities": entity_count, "views": view_count, "screens": screen_count}
+    return {
+        "entities": entity_count,
+        "views": view_count,
+        "layouts": layout_count,
+        "screens": screen_count,
+    }

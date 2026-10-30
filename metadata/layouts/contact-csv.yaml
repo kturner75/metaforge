@@ -1,0 +1,41 @@
+layout: ContactCsv
+entity: Contact
+description: Daily contact feed as a header row + comma-delimited records.
+
+format:
+  kind: delimited
+  delimiter: ","
+  encoding: utf-8
+  hasHeader: true
+
+mapping:
+  - field: firstName
+    column: first_name
+    required: true
+    transform:
+      - trim: {}
+
+  - field: lastName
+    column: last_name
+    required: true
+    transform:
+      - trim: {}
+
+  - field: email
+    column: email
+    transform:
+      - trim: {}
+      - lower: {}
+
+  - field: phone
+    column: phone
+
+  - field: status
+    column: status
+    transform:
+      - lookup:
+          map:
+            A: active
+            I: inactive
+            L: lead
+          default: lead

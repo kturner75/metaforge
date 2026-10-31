@@ -187,11 +187,40 @@ def _lookup_apply(value: Any, params: dict[str, Any]) -> Any:
     return value
 
 
+def _lookup_match_key(value: Any) -> Any:
+    """Normalize a value for tolerant reverse-lookup comparison.
+
+    Codes map to typed values (``{Y: true}``, ``{"1": 100}``), but by write time
+    the field value has been coerced and rendered, so ``True`` arrives as ``1``
+    or ``"1"``. Collapse booleans, numbers and their string forms to a common
+    key so a typed ``lookup`` still round-trips.
+    """
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    token = str(value).strip()
+    low = token.lower()
+    if low == "true":
+        return 1.0
+    if low == "false":
+        return 0.0
+    try:
+        return float(token)
+    except ValueError:
+        return token
+
+
 def _lookup_invert(value: Any, params: dict[str, Any]) -> Any:
     table: dict[str, Any] = params.get("map", {})
     # Reverse the map: value -> code. First matching code wins.
     for code, mapped in table.items():
         if mapped == value:
+            return code
+    # Fall back to a type-tolerant match (handles coerced/rendered values).
+    target = _lookup_match_key(value)
+    for code, mapped in table.items():
+        if _lookup_match_key(mapped) == target:
             return code
     if "writeDefault" in params:
         return params["writeDefault"]

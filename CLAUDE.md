@@ -174,7 +174,7 @@ format:
 mapping:
   - field: firstName        # entity field
     column: first_name      # delimited: header name or integer index
-    # fixed:  at: { offset: 0, width: 20 }
+    # fixed:  at: { offset: 0, width: 20 }   # offset/width are BYTE positions
     required: true
     transform:
       - trim: {}

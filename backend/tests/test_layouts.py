@@ -679,6 +679,90 @@ class TestEmptyCellTransforms:
         assert read(layout, "a,b\n1,\n").data == [{"a": "1", "b": "fallback"}]
 
 
+class TestStrictFieldDecode:
+    """Fix (round 2) #A: undecodable field bytes must fail loudly, not replace."""
+
+    def _layout(self, encoding="utf-8"):
+        return parse_layout(
+            {
+                "layout": "F",
+                "format": {"kind": "fixed", "recordLength": 2, "encoding": encoding},
+                "mapping": [{"field": "a", "at": {"offset": 0, "width": 2}}],
+            }
+        )
+
+    def test_invalid_bytes_are_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), b"\xffx")
+        assert "decode" in str(exc.value)
+
+    def test_invalid_bytes_do_not_leak_replacement(self):
+        res = read(self._layout(), b"\xffx", strict=False)
+        assert res.records[0].values["a"] is None
+        assert "�" not in str(res.records[0].values["a"])
+
+    def test_valid_bytes_still_read(self):
+        assert read(self._layout(), b"ok").data == [{"a": "ok"}]
+
+
+class TestSparseIntColumnHeader:
+    """Fix (round 2) #B: writer header width must match data rows; read round-trips."""
+
+    def _layout(self):
+        return parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": 0},
+                    {"field": "c", "column": 2},
+                ],
+            }
+        )
+
+    def test_roundtrip_does_not_raise(self):
+        layout = self._layout()
+        recs = [{"a": "x", "c": "z"}]
+        out = write(layout, recs, encode=False)
+        # Header row width matches data row width (3 cells, gap at index 1).
+        assert out.splitlines()[0] == "a,,c"
+        assert read(layout, out).data == recs
+
+
+class TestEncodingAwareLineSplit:
+    """Fix (round 2) #C: fixed records split on the encoded newline, not 0x0a."""
+
+    def _layout(self):
+        return parse_layout(
+            {
+                "layout": "F",
+                "format": {"kind": "fixed", "recordLength": 8, "encoding": "utf-16-le"},
+                "mapping": [
+                    {"field": "a", "at": {"offset": 0, "width": 4}, "transform": [{"trim": {}}]},
+                    {"field": "b", "at": {"offset": 4, "width": 4}, "transform": [{"trim": {}}]},
+                ],
+            }
+        )
+
+    def test_utf16_roundtrip_single_record(self):
+        layout = self._layout()
+        recs = [{"a": "AB", "b": "CD"}]
+        out = write(layout, recs)
+        assert isinstance(out, bytes)
+        result = read(layout, out)
+        assert result.data == recs
+        # Exactly one data record — no spurious record from a mis-split newline.
+        assert len([r for r in result.records if r.kind == "data"]) == 1
+
+    def test_utf16_padding_is_encoded_space(self):
+        layout = self._layout()
+        out = write(layout, [{"a": "A", "b": "B"}])
+        # Each 4-byte field: one UTF-16 char (2 bytes) + one UTF-16 space (2 bytes).
+        line = out.split("\n".encode("utf-16-le"))[0]
+        assert line == "A B ".encode("utf-16-le")
+        assert read(layout, out).data == [{"a": "A", "b": "B"}]
+
+
 # ---------------------------------------------------------------------------
 # Loader + config validation
 # ---------------------------------------------------------------------------

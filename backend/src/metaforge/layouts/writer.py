@@ -156,7 +156,19 @@ class _Writer:
         return str(invert_transforms(m.transforms, rendered))
 
     def _header_row(self, mapping: list[FieldMapping]) -> list[str]:
-        header: list[str] = []
+        # When any column is an explicit integer position, place headers at
+        # those positions (filling gaps) so the header row's width matches the
+        # data rows `_delimited_cells` produces.
+        int_positions = [
+            m.source.column for m in mapping if m.source and isinstance(m.source.column, int)
+        ]
+        if int_positions:
+            header = [""] * (max(int_positions) + 1)
+            for m in mapping:
+                if m.source and isinstance(m.source.column, int):
+                    header[m.source.column] = m.field
+            return header
+        header = []
         for m in mapping:
             col = m.source.column if m.source else None
             header.append(col if isinstance(col, str) else m.field)
@@ -183,8 +195,9 @@ class _Writer:
         # Offsets and widths are byte positions, so the line is assembled in
         # bytes: a multibyte field stays aligned and the record length is exact.
         enc = self.fmt.encoding
+        space = self._space()
         width = self.fmt.record_length or self._implied_width(mapping)
-        buffer = bytearray(b" " * width)
+        buffer = bytearray(self._pad_bytes(b"", width, space))
         for m in mapping:
             if not m.source or not m.source.is_fixed:
                 continue
@@ -192,32 +205,45 @@ class _Writer:
             offset = m.source.offset or 0
             field_bytes = cell.encode(enc)
             if m.source.width is not None:
-                field_bytes = self._fit_bytes(field_bytes, m.source.width, cell, enc)
+                field_bytes = self._fit_bytes(field_bytes, m.source.width, cell, enc, space)
             for i, byte in enumerate(field_bytes):
                 if offset + i < width:
                     buffer[offset + i] = byte
         return bytes(buffer)
 
+    def _space(self) -> bytes:
+        """The encoded space unit (``b' '`` for UTF-8, ``b' \\x00'`` for UTF-16)."""
+        return " ".encode(self.fmt.encoding)
+
     @staticmethod
-    def _fit_bytes(field_bytes: bytes, field_width: int, cell: str, enc: str) -> bytes:
+    def _pad_bytes(data: bytes, target: int, space: bytes) -> bytes:
+        """Right-pad ``data`` to ``target`` bytes using the encoded space unit."""
+        if len(data) >= target:
+            return data[:target]
+        needed = target - len(data)
+        fill = (space * (needed // len(space) + 1))[:needed]
+        return data + fill
+
+    @classmethod
+    def _fit_bytes(
+        cls, field_bytes: bytes, field_width: int, cell: str, enc: str, space: bytes
+    ) -> bytes:
         """Fit an encoded cell into ``field_width`` bytes: right-pad or truncate.
 
-        Truncation stops on a character boundary so a multibyte character is
-        never split into invalid bytes.
+        Padding uses the encoding's space unit; truncation stops on a character
+        boundary so a multibyte character is never split into invalid bytes.
         """
         if len(field_bytes) == field_width:
             return field_bytes
         if len(field_bytes) < field_width:
-            return field_bytes + b" " * (field_width - len(field_bytes))
+            return cls._pad_bytes(field_bytes, field_width, space)
         kept = bytearray()
         for ch in cell:
             encoded = ch.encode(enc)
             if len(kept) + len(encoded) > field_width:
                 break
             kept.extend(encoded)
-        if len(kept) < field_width:
-            kept.extend(b" " * (field_width - len(kept)))
-        return bytes(kept)
+        return cls._pad_bytes(bytes(kept), field_width, space)
 
     @staticmethod
     def _implied_width(mapping: list[FieldMapping]) -> int:

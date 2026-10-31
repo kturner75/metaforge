@@ -151,8 +151,20 @@ class _Reader:
             yield idx, cells
 
     def _iter_fixed(self, raw: bytes):
-        """Yield (row_num, line_bytes) for fixed-width input; handles header + blanks."""
-        for idx, line in enumerate(raw.splitlines(), start=1):
+        r"""Yield (row_num, line_bytes) for fixed-width input.
+
+        Lines are split on the layout's *encoded* line terminator so multibyte
+        encodings (e.g. UTF-16, whose newline is ``b"\n\x00"``) are honoured
+        rather than split on a bare ``0x0a``. A trailing encoded carriage
+        return is stripped so a ``"\n"`` layout still reads ``"\r\n"`` files.
+        """
+        enc = self.fmt.encoding
+        term = self.fmt.line_terminator.encode(enc)
+        cr = "\r".encode(enc)
+        parts = raw.split(term) if term else [raw]
+        for idx, line in enumerate(parts, start=1):
+            if cr and line.endswith(cr):
+                line = line[: -len(cr)]
             if self.fmt.has_header and idx == 1:
                 continue
             if self.fmt.skip_blank_lines and line.strip() == b"":
@@ -201,7 +213,11 @@ class _Reader:
         use_header: bool,
     ) -> None:
         """Flag column-count drift: too many or too few cells for this row."""
-        if use_header and self.fmt.has_header and self._header is not None:
+        # Position-based layouts (any integer column) are validated by the
+        # highest referenced index, not header equality — the header is then
+        # cosmetic and may be sparser than the mapped positions.
+        has_int_cols = any(m.source and isinstance(m.source.column, int) for m in mapping)
+        if use_header and self.fmt.has_header and self._header is not None and not has_int_cols:
             expected = len(self._header)
             if len(cells) != expected:
                 self.issues.append(
@@ -211,7 +227,7 @@ class _Reader:
                     )
                 )
             return
-        # No header: the highest referenced integer index sets the minimum width.
+        # The highest referenced integer index sets the minimum width.
         max_index = -1
         for m in mapping:
             if m.source and isinstance(m.source.column, int):
@@ -252,6 +268,7 @@ class _Reader:
     # -- cell extraction -------------------------------------------------
 
     def _safe_decode(self, chunk: bytes) -> str:
+        """Lossy decode for *diagnostic* text only (never for field values)."""
         return chunk.decode(self.fmt.encoding, errors="replace")
 
     def _raw_from_source(
@@ -260,7 +277,10 @@ class _Reader:
         if source.is_fixed:
             assert line is not None
             end = source.offset + source.width  # type: ignore[operator]
-            return self._safe_decode(line[source.offset : end])
+            try:
+                return line[source.offset : end].decode(self.fmt.encoding)
+            except UnicodeDecodeError:
+                return None  # surfaced as an unknown record type
         # delimited
         pos = self._resolve_column(source.column)
         if pos is None:
@@ -300,8 +320,14 @@ class _Reader:
                 values[m.field] = m.const
                 continue
 
-            raw, loc = self._extract(m, row_num, cells, line)
+            raw, loc, decoded_ok = self._extract(m, row_num, cells, line)
             provenance[m.field] = loc
+
+            # A field whose bytes could not be decoded is already a reported
+            # issue; do not let a replacement value flow into the record.
+            if not decoded_ok:
+                values[m.field] = None
+                continue
 
             raw_is_empty = raw is None or raw.strip() == ""
 
@@ -379,15 +405,39 @@ class _Reader:
 
     def _extract(
         self, m: FieldMapping, row_num: int, cells: list[str] | None, line: bytes | None
-    ) -> tuple[str | None, CellLocation]:
+    ) -> tuple[str | None, CellLocation, bool]:
+        """Return (raw_value, location, decoded_ok).
+
+        ``decoded_ok`` is False only when a fixed-width field's bytes could not
+        be decoded with the layout encoding — a reported, located failure.
+        """
         source = m.source
         if source is None:
-            return None, CellLocation(row=row_num, raw="")
+            return None, CellLocation(row=row_num, raw=""), True
         if source.is_fixed:
             end = source.offset + source.width  # type: ignore[operator]
-            raw = self._safe_decode(line[source.offset : end]) if line is not None else ""
-            return raw, CellLocation(
-                row=row_num, byte_offset=source.offset, length=source.width, raw=raw
+            chunk = line[source.offset : end] if line is not None else b""
+            try:
+                raw = chunk.decode(self.fmt.encoding)
+            except UnicodeDecodeError:
+                display = self._safe_decode(chunk)
+                self.issues.append(
+                    ReadIssue(
+                        message=f"could not decode field bytes as {self.fmt.encoding}",
+                        row=row_num,
+                        field=m.field,
+                        byte_offset=source.offset,
+                        raw=display,
+                    )
+                )
+                loc = CellLocation(
+                    row=row_num, byte_offset=source.offset, length=source.width, raw=display
+                )
+                return None, loc, False
+            return (
+                raw,
+                CellLocation(row=row_num, byte_offset=source.offset, length=source.width, raw=raw),
+                True,
             )
         pos = self._resolve_column(source.column)
         if pos is None:
@@ -399,9 +449,9 @@ class _Reader:
                     column=source.column,
                 )
             )
-            return None, CellLocation(row=row_num, column=source.column, raw="")
+            return None, CellLocation(row=row_num, column=source.column, raw=""), True
         raw = cells[pos] if cells is not None and 0 <= pos < len(cells) else None
-        return raw, CellLocation(row=row_num, column=source.column, raw=raw or "")
+        return raw, CellLocation(row=row_num, column=source.column, raw=raw or ""), True
 
     # -- trailer validation ----------------------------------------------
 

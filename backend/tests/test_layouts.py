@@ -435,6 +435,335 @@ class TestEngineWithEntityTypes:
 
 
 # ---------------------------------------------------------------------------
+# Review fixes (MF-020 PR #14 Codex findings)
+# ---------------------------------------------------------------------------
+
+
+class TestDelimitedShapeDrift:
+    """Fix #1: delimited row-shape drift must fail loudly, not be absorbed."""
+
+    def _layout(self):
+        return parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": "a"},
+                    {"field": "b", "column": "b"},
+                ],
+            }
+        )
+
+    def test_extra_column_is_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), "a,b\n1,2,3\n")
+        assert "columns" in str(exc.value)
+
+    def test_missing_column_count_is_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), "a,b\n1\n")
+        assert "columns" in str(exc.value)
+
+    def test_exact_width_is_fine(self):
+        assert read(self._layout(), "a,b\n1,2\n").data == [{"a": "1", "b": "2"}]
+
+    def test_headerless_short_row_is_loud(self):
+        layout = parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited"},
+                "mapping": [{"field": "a", "column": 0}, {"field": "b", "column": 2}],
+            }
+        )
+        with pytest.raises(LayoutReadError) as exc:
+            read(layout, "x,y\n")
+        assert "at least" in str(exc.value)
+
+
+class TestFixedWidthBytes:
+    """Fix #2: fixed-width offsets/widths are byte positions, not char indices."""
+
+    def _layout(self):
+        # "café" occupies 5 bytes in UTF-8 (é = 2 bytes); field a holds it whole.
+        return parse_layout(
+            {
+                "layout": "F",
+                "format": {"kind": "fixed", "recordLength": 10, "encoding": "utf-8"},
+                "mapping": [
+                    {"field": "a", "at": {"offset": 0, "width": 5}, "transform": [{"trim": {}}]},
+                    {"field": "b", "at": {"offset": 5, "width": 5}, "transform": [{"trim": {}}]},
+                ],
+            }
+        )
+
+    def test_multibyte_read_slices_by_byte(self):
+        # 10 bytes: "café" (5) + "Bob  " (5). Byte slicing gives "café"/"Bob";
+        # char slicing would wrongly pull "caféB" into field a.
+        data = "café".encode() + b"Bob  "
+        assert len(data) == 10
+        res = read(self._layout(), data + b"\n")
+        assert res.data == [{"a": "café", "b": "Bob"}]
+
+    def test_multibyte_roundtrip(self):
+        data = "café".encode() + b"Bob  "
+        recs = read(self._layout(), data + b"\n").data
+        out = write(self._layout(), recs)
+        assert isinstance(out, bytes)
+        assert len(out.splitlines()[0]) == 10  # bytes, not characters
+        assert read(self._layout(), out).data == recs
+
+    def test_multibyte_write_keeps_byte_width(self):
+        out = write(self._layout(), [{"a": "é", "b": "x"}])
+        assert len(out.splitlines()[0]) == 10  # bytes, not characters
+
+    def test_truncation_stops_on_char_boundary(self):
+        # Field a is 5 bytes; three é's would be 6 bytes — only two (4 bytes) fit,
+        # padded to 5, never a split (invalid) multibyte sequence.
+        out = write(self._layout(), [{"a": "ééé", "b": "x"}])
+        field_a = out.splitlines()[0][:5]
+        assert field_a.decode("utf-8") == "éé "
+
+    def test_length_drift_message_is_bytes(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), b"short\n")
+        assert "bytes" in str(exc.value)
+
+
+class TestTypedLookupRoundTrip:
+    """Fix #3: a lookup to typed values round-trips through coerce/render."""
+
+    def test_boolean_lookup_roundtrips(self):
+        entity = _entity(active="checkbox")
+        layout = parse_layout(
+            {
+                "layout": "D",
+                "entity": "T",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {
+                        "field": "active",
+                        "column": "flag",
+                        "transform": [{"lookup": {"map": {"Y": True, "N": False}}}],
+                    }
+                ],
+            }
+        )
+        recs = read(layout, "flag\nY\n", entity=entity).data
+        assert recs == [{"active": 1}]
+        out = write(layout, recs, entity=entity, encode=False)
+        assert out.splitlines()[1] == "Y"
+
+    def test_numeric_lookup_roundtrips(self):
+        entity = _entity(tier="currency")
+        layout = parse_layout(
+            {
+                "layout": "D",
+                "entity": "T",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {
+                        "field": "tier",
+                        "column": "t",
+                        "transform": [{"lookup": {"map": {"1": 100, "2": 200}}}],
+                    }
+                ],
+            }
+        )
+        recs = read(layout, "t\n1\n", entity=entity).data
+        assert recs == [{"tier": 100.0}]
+        out = write(layout, recs, entity=entity, encode=False)
+        assert out.splitlines()[1] == "1"
+
+    def test_lookup_invert_type_tolerant_direct(self):
+        spec = get_transform("lookup")
+        params = {"map": {"Y": True, "N": False}}
+        assert spec.invert(1, params) == "Y"
+        assert spec.invert("1", params) == "Y"
+        assert spec.invert(0, params) == "N"
+
+
+class TestTrailerCountIntegrality:
+    """Fix #4: a non-integral / garbage trailer count must fail loudly."""
+
+    def _layout(self):
+        return TestReaderMultiRecord()._layout()
+
+    def test_garbage_count_is_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), "H\nD,Ada\nT,garbage\n")
+        assert "not an integer" in str(exc.value)
+
+    def test_non_integral_count_is_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), "H\nD,Ada\nT,1.9\n")
+        assert "not an integer" in str(exc.value)
+
+    def test_integral_float_count_still_matches(self):
+        # A number-typed trailer count of "1" coerces to 1.0 but is integral.
+        entity = _entity(count="number")
+        layout = parse_layout(
+            {
+                "layout": "Feed",
+                "entity": "T",
+                "format": {"kind": "delimited", "delimiter": ","},
+                "recordType": {"column": 0},
+                "records": [
+                    {
+                        "type": "D",
+                        "kind": "data",
+                        "mapping": [
+                            {"field": "rt", "const": "D", "column": 0},
+                            {"field": "name", "column": 1},
+                        ],
+                    },
+                    {
+                        "type": "T",
+                        "kind": "trailer",
+                        "recordCountField": "count",
+                        "mapping": [
+                            {"field": "rt", "const": "T", "column": 0},
+                            {"field": "count", "column": 1},
+                        ],
+                    },
+                ],
+            }
+        )
+        res = read(layout, "D,Ada\nT,1\n", entity=entity)
+        assert res.data == [{"rt": "D", "name": "Ada"}]
+
+
+class TestEmptyCellTransforms:
+    """Fix #5: transforms/expressions run on empty cells (e.g. `default`)."""
+
+    def test_default_transform_fills_empty(self):
+        layout = parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": "a"},
+                    {
+                        "field": "b",
+                        "column": "b",
+                        "transform": [{"default": {"value": "N/A"}}],
+                    },
+                ],
+            }
+        )
+        assert read(layout, "a,b\n1,\n").data == [{"a": "1", "b": "N/A"}]
+
+    def test_expression_runs_on_empty(self):
+        layout = parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": "a"},
+                    {"field": "b", "column": "b", "expression": "concat(value, 'Z')"},
+                ],
+            }
+        )
+        assert read(layout, "a,b\n1,\n").data == [{"a": "1", "b": "Z"}]
+
+    def test_empty_without_transform_uses_mapping_default(self):
+        layout = parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": "a"},
+                    {"field": "b", "column": "b", "default": "fallback"},
+                ],
+            }
+        )
+        assert read(layout, "a,b\n1,\n").data == [{"a": "1", "b": "fallback"}]
+
+
+class TestStrictFieldDecode:
+    """Fix (round 2) #A: undecodable field bytes must fail loudly, not replace."""
+
+    def _layout(self, encoding="utf-8"):
+        return parse_layout(
+            {
+                "layout": "F",
+                "format": {"kind": "fixed", "recordLength": 2, "encoding": encoding},
+                "mapping": [{"field": "a", "at": {"offset": 0, "width": 2}}],
+            }
+        )
+
+    def test_invalid_bytes_are_loud(self):
+        with pytest.raises(LayoutReadError) as exc:
+            read(self._layout(), b"\xffx")
+        assert "decode" in str(exc.value)
+
+    def test_invalid_bytes_do_not_leak_replacement(self):
+        res = read(self._layout(), b"\xffx", strict=False)
+        assert res.records[0].values["a"] is None
+        assert "�" not in str(res.records[0].values["a"])
+
+    def test_valid_bytes_still_read(self):
+        assert read(self._layout(), b"ok").data == [{"a": "ok"}]
+
+
+class TestSparseIntColumnHeader:
+    """Fix (round 2) #B: writer header width must match data rows; read round-trips."""
+
+    def _layout(self):
+        return parse_layout(
+            {
+                "layout": "L",
+                "format": {"kind": "delimited", "hasHeader": True},
+                "mapping": [
+                    {"field": "a", "column": 0},
+                    {"field": "c", "column": 2},
+                ],
+            }
+        )
+
+    def test_roundtrip_does_not_raise(self):
+        layout = self._layout()
+        recs = [{"a": "x", "c": "z"}]
+        out = write(layout, recs, encode=False)
+        # Header row width matches data row width (3 cells, gap at index 1).
+        assert out.splitlines()[0] == "a,,c"
+        assert read(layout, out).data == recs
+
+
+class TestEncodingAwareLineSplit:
+    """Fix (round 2) #C: fixed records split on the encoded newline, not 0x0a."""
+
+    def _layout(self):
+        return parse_layout(
+            {
+                "layout": "F",
+                "format": {"kind": "fixed", "recordLength": 8, "encoding": "utf-16-le"},
+                "mapping": [
+                    {"field": "a", "at": {"offset": 0, "width": 4}, "transform": [{"trim": {}}]},
+                    {"field": "b", "at": {"offset": 4, "width": 4}, "transform": [{"trim": {}}]},
+                ],
+            }
+        )
+
+    def test_utf16_roundtrip_single_record(self):
+        layout = self._layout()
+        recs = [{"a": "AB", "b": "CD"}]
+        out = write(layout, recs)
+        assert isinstance(out, bytes)
+        result = read(layout, out)
+        assert result.data == recs
+        # Exactly one data record — no spurious record from a mis-split newline.
+        assert len([r for r in result.records if r.kind == "data"]) == 1
+
+    def test_utf16_padding_is_encoded_space(self):
+        layout = self._layout()
+        out = write(layout, [{"a": "A", "b": "B"}])
+        # Each 4-byte field: one UTF-16 char (2 bytes) + one UTF-16 space (2 bytes).
+        line = out.split("\n".encode("utf-16-le"))[0]
+        assert line == "A B ".encode("utf-16-le")
+        assert read(layout, out).data == [{"a": "A", "b": "B"}]
+
+
+# ---------------------------------------------------------------------------
 # Loader + config validation
 # ---------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ This directory contains Architecture Decision Records (ADRs) for MetaForge.
 | [0012](0012-persistence-migrations.md) | Persistence & Migrations Strategy | Accepted (partial) |
 | [0013](0013-entity-design-sandbox.md) | AI-Assisted Entity Design Sandbox | Accepted |
 | [0014](0014-file-layout-metadata.md) | File-Layout Metadata (Delimited & Fixed-Width) | Accepted |
+| [0015](0015-embeddable-library.md) | MetaForge as an Embeddable Library | Proposed |
 
 ## Creating New ADRs
 

@@ -24,9 +24,13 @@ export interface FieldAccess {
   write: boolean
 }
 
+/** Host-owned metadata keyed by namespace; MetaForge never interprets it. */
+export type ExtensionsMap = Record<string, Record<string, unknown>>
+
 export interface FieldMetadata {
   name: string
   displayName: string
+  description?: string
   type: string
   primaryKey?: boolean
   readOnly?: boolean
@@ -43,6 +47,7 @@ export interface FieldMetadata {
     filter: FieldUIConfig
     grid: FieldUIConfig
   }
+  extensions?: ExtensionsMap
 }
 
 export interface EntityOperations {
@@ -55,11 +60,13 @@ export interface EntityMetadata {
   entity: string
   displayName: string
   pluralName: string
+  description?: string
   primaryKey: string
   labelField: string | null
   isDraft?: boolean
   operations?: EntityOperations
   fields: FieldMetadata[]
+  extensions?: ExtensionsMap
 }
 
 export interface FilterCondition {

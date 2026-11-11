@@ -72,6 +72,7 @@ def _serialize_field(field) -> dict[str, Any]:
     result: dict[str, Any] = {
         "name": field.name,
         "displayName": field.display_name,
+        "description": field.description,
         "type": field.type,
         "primaryKey": field.primary_key,
         "readOnly": field.read_only,
@@ -89,6 +90,7 @@ def _serialize_field(field) -> dict[str, Any]:
             "displayField": field.relation.display_field,
             "onDelete": field.relation.on_delete,
         } if field.relation else None,
+        "extensions": field.extensions,
     }
     return result
 
@@ -155,9 +157,11 @@ def get_entity_metadata(entity: str) -> dict[str, Any]:
         "entity": entity_model.name,
         "displayName": entity_model.display_name,
         "pluralName": entity_model.plural_name,
+        "description": entity_model.description,
         "primaryKey": entity_model.primary_key,
         "scope": entity_model.scope,
         "fields": fields,
+        "extensions": entity_model.extensions,
     }
 
 

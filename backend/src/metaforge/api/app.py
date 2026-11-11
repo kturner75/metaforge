@@ -350,6 +350,7 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
         field_meta = {
             "name": field.name,
             "displayName": field.display_name,
+            "description": field.description,
             "type": field.type,
             "primaryKey": field.primary_key,
             "readOnly": field.read_only,
@@ -385,6 +386,7 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
                     "alignment": field_type.ui.alignment,
                 },
             },
+            "extensions": field.extensions,
         }
         fields.append(field_meta)
 
@@ -407,11 +409,13 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
         "entity": entity_model.name,
         "displayName": entity_model.display_name,
         "pluralName": entity_model.plural_name,
+        "description": entity_model.description,
         "primaryKey": entity_model.primary_key,
         "labelField": entity_model.label_field,
         "isDraft": entity_model.is_draft,
         "operations": operations,
         "fields": fields,
+        "extensions": entity_model.extensions,
     }
 
 

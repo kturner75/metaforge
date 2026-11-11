@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -38,6 +38,8 @@ from metaforge.auth import (
     apply_field_read_policy,
     apply_field_write_policy,
     get_field_access,
+    require_authenticated,
+    require_role,
 )
 from metaforge.auth.endpoints import create_auth_router
 from metaforge.views import SavedConfigStore, ViewConfigLoader
@@ -171,7 +173,10 @@ async def lifespan(app: FastAPI):
     )
     app.include_router(screens_router)
 
-    # Initialize auth services (can be disabled via environment variable for testing)
+    # Initialize auth services (can be disabled via environment variable for testing).
+    # Reset first so a restart with auth disabled doesn't keep an earlier service.
+    jwt_service = None
+    password_service = None
     if os.environ.get("METAFORGE_DISABLE_AUTH", "").lower() not in ("1", "true", "yes"):
         jwt_service = JWTService(secret_key)
         password_service = PasswordService()
@@ -286,10 +291,25 @@ def _resolve_lifecycle(entity_model: EntityModel) -> EntityLifecycleFactory:
     return lifecycle_factory
 
 
+# --- Access helpers for endpoints without an entity permission check ---
+
+
+def require_login_when_auth_enabled(request: Request) -> None:
+    """Reject anonymous callers when auth is on; allow everyone when it's off."""
+    if jwt_service is not None:
+        require_authenticated(request)
+
+
+def require_admin_when_auth_enabled(request: Request) -> None:
+    """Require the admin role when auth is on; allow everyone when it's off."""
+    if jwt_service is not None:
+        require_role("admin")(request)
+
+
 # --- Metadata Endpoints ---
 
 
-@app.get("/api/metadata")
+@app.get("/api/metadata", dependencies=[Depends(require_login_when_auth_enabled)])
 async def list_entities() -> dict[str, Any]:
     """List all available entities."""
     if not metadata_loader:
@@ -309,7 +329,7 @@ async def list_entities() -> dict[str, Any]:
     return {"entities": entities}
 
 
-@app.get("/api/metadata/{entity}")
+@app.get("/api/metadata/{entity}", dependencies=[Depends(require_login_when_auth_enabled)])
 async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, Any]:
     """Get full metadata for an entity."""
     if not metadata_loader:
@@ -402,7 +422,9 @@ async def get_entity_metadata(entity: str, http_request: Request) -> dict[str, A
 # --- Admin Endpoints ---
 
 
-@app.post("/api/admin/metadata/reload")
+@app.post(
+    "/api/admin/metadata/reload", dependencies=[Depends(require_admin_when_auth_enabled)]
+)
 async def reload_metadata_endpoint() -> dict[str, Any]:
     """Reload all metadata from disk without restarting the server.
 
@@ -516,7 +538,7 @@ class DraftEntityRequest(BaseModel):
     generateDoc: bool = False
 
 
-@app.post("/api/admin/sandbox/draft")
+@app.post("/api/admin/sandbox/draft", dependencies=[Depends(require_admin_when_auth_enabled)])
 def create_draft_entity_endpoint(body: DraftEntityRequest) -> dict[str, Any]:
     """Write a draft entity YAML, create its table, hot-reload."""
     if not sandbox_service:
@@ -524,7 +546,9 @@ def create_draft_entity_endpoint(body: DraftEntityRequest) -> dict[str, Any]:
     return sandbox_service.draft_entity(body.yaml)
 
 
-@app.post("/api/admin/sandbox/promote/{entity}")
+@app.post(
+    "/api/admin/sandbox/promote/{entity}", dependencies=[Depends(require_admin_when_auth_enabled)]
+)
 def promote_entity_endpoint(entity: str, body: DraftEntityRequest | None = None) -> dict[str, Any]:
     """Promote a draft entity to production."""
     if not sandbox_service:
@@ -536,7 +560,9 @@ def promote_entity_endpoint(entity: str, body: DraftEntityRequest | None = None)
     return result
 
 
-@app.post("/api/admin/sandbox/dismiss/{entity}")
+@app.post(
+    "/api/admin/sandbox/dismiss/{entity}", dependencies=[Depends(require_admin_when_auth_enabled)]
+)
 def dismiss_entity_endpoint(entity: str) -> dict[str, Any]:
     """Dismiss (delete) a draft entity."""
     if not sandbox_service:

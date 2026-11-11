@@ -117,26 +117,30 @@ export async function fetchJson<T>(url: string, options: FetchOptions = {}): Pro
   }
 
   if (!skipAuthRefresh && (response.status === 401 || response.status === 403)) {
+    let refreshed: AuthTokens
     try {
-      const refreshed = await refreshAccessToken()
-      const retryResponse = await fetch(url, {
-        ...fetchOptions,
-        headers: {
-          ...headers,
-          Authorization: `Bearer ${refreshed.accessToken}`,
-        },
-      })
-
-      if (retryResponse.ok) {
-        return safeJson<T>(retryResponse)
-      }
-
-      const retryMessage = await parseErrorMessage(retryResponse)
-      throw new ApiError(retryMessage, retryResponse.status)
+      refreshed = await refreshAccessToken()
     } catch (error) {
+      // Only a failed refresh ends the session. A retry that is still refused
+      // (e.g. a 403 for a non-admin) keeps the user signed in.
       clearAuthTokens()
       throw error
     }
+
+    const retryResponse = await fetch(url, {
+      ...fetchOptions,
+      headers: {
+        ...headers,
+        Authorization: `Bearer ${refreshed.accessToken}`,
+      },
+    })
+
+    if (retryResponse.ok) {
+      return safeJson<T>(retryResponse)
+    }
+
+    const retryMessage = await parseErrorMessage(retryResponse)
+    throw new ApiError(retryMessage, retryResponse.status)
   }
 
   // Preserve structured validation errors from 422 responses

@@ -36,6 +36,7 @@ from metaforge.validation.expressions.parser import (
     UnaryOp,
     parse,
 )
+from metaforge.validation.expressions.references import referenced_fields
 
 __all__ = [
     # Evaluator
@@ -68,4 +69,6 @@ __all__ = [
     "Parser",
     "UnaryOp",
     "parse",
+    # References
+    "referenced_fields",
 ]

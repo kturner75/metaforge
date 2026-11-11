@@ -41,6 +41,31 @@ npm install
 npm run dev
 ```
 
+`.[dev]` pulls in the `server` extra (API, auth, persistence, migrations, MCP, CLI).
+
+### Embedding MetaForge in another app
+A host that only needs MetaForge's rules installs the light core (pyyaml and jsonschema; see [ADR-0015](docs/adr/0015-embeddable-library.md)):
+
+```bash
+pip install "metaforge @ git+https://github.com/kturner75/metaforge.git@v0.2.0#subdirectory=backend"
+```
+
+```python
+from metaforge.metadata.loader import MetadataLoader
+from metaforge.validation import referenced_fields, validate_record
+
+loader = MetadataLoader(entities_dir="schema", blocks_dir="schema/blocks")
+loader.load_all()
+
+result = validate_record(loader.get_entity("Vendor"), {"name": "Acme"})
+result.valid, result.errors, result.warnings  # defaults applied in result.record
+result.skipped  # unique/referenceExists checks, unless you pass query=...
+
+referenced_fields('status == "active" && len(name) > 3')  # {"status", "name"}
+```
+
+`validate_record` is synchronous and needs no database. Pass `query=fn` (`fn(entity, filter, tenant_id) -> rows`) to run uniqueness and reference checks against your own data.
+
 Database URL, seed scripts, and test logins are in [docs/development.md](docs/development.md). Use whatever virtualenv you create; the seed commands below assume a repo-root `.venv`.
 
 ### Auth Setup (Local Dev)

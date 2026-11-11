@@ -6,7 +6,9 @@ This module bridges the gap between:
 - Persistence layer (PersistenceAdapter)
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from metaforge.metadata.loader import (
     DefaultConfig,
@@ -15,8 +17,6 @@ from metaforge.metadata.loader import (
     HookConfig,
     ValidatorConfig,
 )
-from metaforge.hooks.types import HookDefinition
-from metaforge.persistence.adapter import PersistenceAdapter
 from metaforge.validation.services import (
     DefaultDefinition,
     DefaultingService,
@@ -36,6 +36,12 @@ from metaforge.validation.validators.field_constraints import (
     FieldConstraintValidator,
     generate_field_validators,
 )
+
+if TYPE_CHECKING:
+    # Persistence is server-side (ADR-0015); hooks.types imports
+    # metaforge.validation, so importing it here at load time would be circular.
+    from metaforge.hooks.types import HookDefinition
+    from metaforge.persistence.adapter import PersistenceAdapter
 
 
 # =============================================================================
@@ -70,6 +76,8 @@ def default_config_to_definition(config: DefaultConfig) -> DefaultDefinition:
 
 def hook_config_to_definition(config: HookConfig) -> HookDefinition:
     """Convert metadata HookConfig to HookDefinition."""
+    from metaforge.hooks.types import HookDefinition
+
     return HookDefinition(
         name=config.name,
         on=[Operation(op) for op in config.on],
@@ -99,6 +107,61 @@ def get_field_options(entity: EntityModel) -> dict[str, list[dict[str, str]]]:
         if field.options:
             options[field.name] = field.options
     return options
+
+
+def get_validator_definitions(entity: EntityModel) -> list[ValidatorDefinition]:
+    """Validator definitions declared in an entity's metadata."""
+    return [validator_config_to_definition(v) for v in entity.validators]
+
+
+def get_default_definitions(entity: EntityModel) -> list[DefaultDefinition]:
+    """Default definitions declared in an entity's metadata."""
+    return [default_config_to_definition(d) for d in entity.defaults]
+
+
+def get_static_defaults(entity: EntityModel) -> list[DefaultDefinition]:
+    """Static defaults from field definitions (applied on create only)."""
+    defaults: list[DefaultDefinition] = []
+    for field in entity.fields:
+        if field.default is not None and not field.auto:
+            defaults.append(
+                DefaultDefinition(
+                    field=field.name,
+                    value=field.default,
+                    policy=DefaultPolicy.DEFAULT,
+                    on=[Operation.CREATE],
+                )
+            )
+    return defaults
+
+
+def get_relation_validators(entity: EntityModel) -> list[ValidatorDefinition]:
+    """Auto-generated referenceExists validators for relation fields."""
+    validators: list[ValidatorDefinition] = []
+    for field in entity.fields:
+        if field.type == "relation" and field.relation:
+            validators.append(
+                ValidatorDefinition(
+                    type="referenceExists",
+                    params={
+                        "field": field.name,
+                        "entity": field.relation.entity,
+                    },
+                    message=f"Referenced {field.relation.entity} not found",
+                    code="REFERENCE_NOT_FOUND",
+                    severity=Severity.ERROR,
+                    on=[Operation.CREATE, Operation.UPDATE],
+                )
+            )
+    return validators
+
+
+def create_message_interpolator(entity: EntityModel) -> MessageInterpolator:
+    """Message interpolator that knows an entity's field labels and options."""
+    return MessageInterpolator(
+        field_labels=get_field_labels(entity),
+        field_options=get_field_options(entity),
+    )
 
 
 # =============================================================================
@@ -227,11 +290,7 @@ class EntityLifecycleFactory:
         user_context: UserContext | None = None,
     ) -> EntityLifecycle:
         """Create an EntityLifecycle configured for the given entity."""
-        # Create message interpolator with field metadata
-        interpolator = MessageInterpolator(
-            field_labels=get_field_labels(entity),
-            field_options=get_field_options(entity),
-        )
+        interpolator = create_message_interpolator(entity)
 
         # Create services
         defaulting_service = DefaultingService(user_context)
@@ -245,11 +304,11 @@ class EntityLifecycleFactory:
 
     def get_validators(self, entity: EntityModel) -> list[ValidatorDefinition]:
         """Get validator definitions for an entity."""
-        return [validator_config_to_definition(v) for v in entity.validators]
+        return get_validator_definitions(entity)
 
     def get_defaults(self, entity: EntityModel) -> list[DefaultDefinition]:
         """Get default definitions for an entity."""
-        return [default_config_to_definition(d) for d in entity.defaults]
+        return get_default_definitions(entity)
 
     def get_auto_fields(self, entity: EntityModel) -> dict[str, str]:
         """Get auto-populated field definitions."""
@@ -257,18 +316,7 @@ class EntityLifecycleFactory:
 
     def get_static_defaults(self, entity: EntityModel) -> list[DefaultDefinition]:
         """Get static defaults from field definitions."""
-        defaults: list[DefaultDefinition] = []
-        for field in entity.fields:
-            if field.default is not None and not field.auto:
-                defaults.append(
-                    DefaultDefinition(
-                        field=field.name,
-                        value=field.default,
-                        policy=DefaultPolicy.DEFAULT,
-                        on=[Operation.CREATE],
-                    )
-                )
-        return defaults
+        return get_static_defaults(entity)
 
     def get_field_validators(
         self, entity: EntityModel
@@ -293,25 +341,7 @@ class EntityLifecycleFactory:
         For each relation field, generates a referenceExists validator
         to ensure the referenced entity exists.
         """
-        validators: list[ValidatorDefinition] = []
-
-        for field in entity.fields:
-            if field.type == "relation" and field.relation:
-                validators.append(
-                    ValidatorDefinition(
-                        type="referenceExists",
-                        params={
-                            "field": field.name,
-                            "entity": field.relation.entity,
-                        },
-                        message=f"Referenced {field.relation.entity} not found",
-                        code="REFERENCE_NOT_FOUND",
-                        severity=Severity.ERROR,
-                        on=[Operation.CREATE, Operation.UPDATE],
-                    )
-                )
-
-        return validators
+        return get_relation_validators(entity)
 
     def get_hook_definitions(
         self, entity: EntityModel, hook_point: str

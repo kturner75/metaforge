@@ -42,6 +42,22 @@ Returns the field names an expression reads.
 ### 7. Tagged releases
 Releases are tagged; hosts pin a tag through a git URL with `#subdirectory=backend` until MetaForge is published.
 
+## Implementation Notes (MF-003)
+
+How the decision landed in code, including choices the decision left open:
+
+- **Dependencies.** `dependencies` is pyyaml and jsonschema. `[server]` holds the rest, including click and pydantic. `[dev]` installs `metaforge[server]`, so `pip install -e ".[dev]"` is unchanged for contributors.
+- **CLI.** Subcommands load on first use, so `metaforge metadata` works with only click added and `metaforge migrate` names the missing extra instead of failing at import. Without click, the `metaforge` script prints the install hint. Click stays in `[server]` rather than core: a host embeds the library and does not run the CLI.
+- **Schemas.** Declared as package data on `metaforge.metadata` (`schemas/*.json`). Before this, a built wheel contained none of them.
+- **`validate_record(entity, record, operation="create", query=None, *, original=None, user_context=None)`** in `metaforge.validation.record`, exported from `metaforge.validation`. It runs the server's steps in the server's order: static and metadata defaults, auto fields, field rules, metadata validators plus auto-generated `referenceExists` checks, message interpolation. It returns `RecordValidation` with `record`, `validation`, `valid`, `errors`, `warnings` and `skipped`.
+  - It drives the validator coroutines by hand rather than through `asyncio.run`. None of them awaits anything but the query service, and here that service wraps a plain function, so each finishes on its first step. This also works inside a host's running event loop, where `asyncio.run` refuses. A validator that truly suspends raises a clear error, and an async `query` callback is rejected.
+  - `query(entity, filter, tenant_id) -> rows` receives the validation filter format (`{"and": [{"field", "op", "value"}]}`, ops `eq`/`neq`).
+  - Without `query`, data validators are listed in `skipped`, with a log warning. They are not added to `warnings`, because a validation warning means "the user must acknowledge", which a missing callback is not. Unregistered validator types are listed in `skipped` too, where the server drops them silently.
+  - A parity test runs both paths over the sample Contact entity and compares records, errors and warnings.
+- **`referenced_fields(expression, *, variables=("context",))`** walks the AST. `record.x` and `original.x` count as `x`; function names, object-literal keys and the `context` variable are not fields; `address.city` counts as `address`.
+- **`MetadataLoader(metadata_path=None, *, entities_dir=None, blocks_dir=None, drafts_dir=None)`.** An explicit directory overrides the derived one. With only explicit directories there are no drafts. Engram's `schema/` plus `schema/blocks/` layout loads without renaming.
+- **Version.** The package is `0.2.0`; the `v0.2.0` tag is cut after the merge.
+
 ## Alternatives Considered
 
 - **Pin the package as it is.** Fastest start, but every host inherits the server stack and its pins (`bcrypt<4`, `fastmcp<3`), and the schemas are still missing from the wheel.

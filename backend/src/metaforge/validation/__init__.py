@@ -6,6 +6,9 @@ This module provides a three-layer validation architecture:
 - Layer 2: Application validators (custom, coded)
 - Layer 3: Configured validators (tenant-scoped, stored in database)
 
+Hosts that embed MetaForge (ADR-0015) usually need only:
+    from metaforge.validation import validate_record, referenced_fields
+
 Usage:
     from metaforge.validation import (
         register_all_builtins,
@@ -38,6 +41,7 @@ from metaforge.validation.expressions import (
     evaluate,
     evaluate_bool,
     FunctionRegistry,
+    referenced_fields,
 )
 from metaforge.validation.expressions.builtins import register_all_builtins
 from metaforge.validation.registry import (
@@ -66,6 +70,11 @@ from metaforge.validation.types import (
     ValidatorDefinition,
 )
 from metaforge.validation.validators import register_canned_validators
+from metaforge.validation.record import (
+    RecordValidation,
+    SkippedValidator,
+    validate_record,
+)
 
 __all__ = [
     # Types
@@ -88,6 +97,11 @@ __all__ = [
     "evaluate",
     "evaluate_bool",
     "FunctionRegistry",
+    "referenced_fields",
+    # Host entry point (ADR-0015)
+    "RecordValidation",
+    "SkippedValidator",
+    "validate_record",
     # Services
     "DefaultDefinition",
     "DefaultingService",

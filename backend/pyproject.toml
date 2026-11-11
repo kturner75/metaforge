@@ -1,15 +1,27 @@
 [project]
 name = "metaforge"
-version = "0.1.0"
+version = "0.2.0"
 description = "A metadata-driven full-stack framework for data-centric web applications"
 readme = "README.md"
 requires-python = ">=3.11"
+# Light core (ADR-0015): metadata loader and validator, expressions, defaulting,
+# validation and file layouts. Hosts that embed MetaForge install only this.
 dependencies = [
+    "pyyaml>=6.0.0",
+    "jsonschema>=4.18.0",
+]
+
+[project.scripts]
+metaforge = "metaforge.cli:main"
+
+[project.optional-dependencies]
+# Everything MetaForge needs to run its own app: API, auth, persistence,
+# migrations, MCP server, CLI and fake data.
+server = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "sqlalchemy>=2.0.0",
     "psycopg[binary]>=3.1.0",
-    "pyyaml>=6.0.0",
     "pydantic>=2.0.0",
     "alembic>=1.13.0",
     "passlib[bcrypt]>=1.7.4",
@@ -17,15 +29,10 @@ dependencies = [
     "pyjwt>=2.8.0",
     "click>=8.0.0",
     "fastmcp>=2.0.0,<3.0.0",
-    "jsonschema>=4.18.0",
     "faker>=24.0.0",
 ]
-
-[project.scripts]
-metaforge = "metaforge.cli.main:cli"
-
-[project.optional-dependencies]
 dev = [
+    "metaforge[server]",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "httpx>=0.26.0",
@@ -38,6 +45,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Ship the JSON Schemas so a wheel or git install can validate metadata.
+[tool.setuptools.package-data]
+"metaforge.metadata" = ["schemas/*.json"]
 
 [tool.ruff]
 target-version = "py312"

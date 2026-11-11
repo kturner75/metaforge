@@ -66,7 +66,7 @@ The loader raises `ValueError` naming the entity or field when `extensions` is n
 - MetaForge can grow new top-level keys without colliding with hosts.
 
 ### Negative
-- Extensions are visible to every API and MCP client that can read entity metadata, so they must never hold secrets. Today `GET /api/metadata/{entity}` answers without a token even when auth is on, so in practice that means anyone who can reach the server. A server-only namespace, or requiring auth on the metadata endpoints, would be a later change.
+- Extensions are visible to every API and MCP client that can read entity metadata, so they must never hold secrets. With auth on, that means any signed-in user (the metadata endpoints require login since PR #18). A server-only namespace would be a later change.
 - One malformed `extensions` block stops the whole metadata load, which is stricter than the loader's handling of other unknown keys.
 - MetaForge cannot catch a typo inside a namespace; that stays the host's job.
 

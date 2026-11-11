@@ -153,10 +153,43 @@ class EntityModel:
 
 
 class MetadataLoader:
-    """Loads entity and block definitions from YAML files."""
+    """Loads entity and block definitions from YAML files.
 
-    def __init__(self, metadata_path: Path):
-        self.metadata_path = metadata_path
+    By default it reads ``entities/``, ``blocks/`` and ``drafts/`` under one
+    ``metadata_path``. A host that keeps its metadata elsewhere (ADR-0015) can
+    name the directories instead::
+
+        MetadataLoader(entities_dir=root / "schema", blocks_dir=root / "schema" / "blocks")
+
+    An explicit directory wins over the one derived from ``metadata_path``.
+    Drafts are read only from ``drafts_dir``, or from ``metadata_path/drafts``
+    when ``metadata_path`` is given. A directory that does not exist is skipped.
+    """
+
+    def __init__(
+        self,
+        metadata_path: Path | str | None = None,
+        *,
+        entities_dir: Path | str | None = None,
+        blocks_dir: Path | str | None = None,
+        drafts_dir: Path | str | None = None,
+    ):
+        base = Path(metadata_path) if metadata_path is not None else None
+        if base is None and entities_dir is None:
+            raise ValueError("MetadataLoader needs metadata_path or entities_dir")
+
+        self.metadata_path = base
+        self.entities_dir: Path = (
+            Path(entities_dir) if entities_dir is not None else Path(base, "entities")
+        )
+        self.blocks_dir: Path | None = (
+            Path(blocks_dir) if blocks_dir is not None
+            else (base / "blocks" if base is not None else None)
+        )
+        self.drafts_dir: Path | None = (
+            Path(drafts_dir) if drafts_dir is not None
+            else (base / "drafts" if base is not None else None)
+        )
         self.entities: dict[str, EntityModel] = {}
         self.blocks: dict[str, list[dict]] = {}
 
@@ -205,8 +238,8 @@ class MetadataLoader:
 
     def _load_blocks(self) -> None:
         """Load reusable block definitions."""
-        blocks_path = self.metadata_path / "blocks"
-        if not blocks_path.exists():
+        blocks_path = self.blocks_dir
+        if blocks_path is None or not blocks_path.exists():
             return
 
         for yaml_file in blocks_path.glob("*.yaml"):
@@ -217,12 +250,12 @@ class MetadataLoader:
 
     def _load_entities(self) -> None:
         """Load entity definitions from entities/ and drafts/ directories."""
-        self._load_entities_from_dir(self.metadata_path / "entities", is_draft=False)
-        self._load_entities_from_dir(self.metadata_path / "drafts", is_draft=True)
+        self._load_entities_from_dir(self.entities_dir, is_draft=False)
+        self._load_entities_from_dir(self.drafts_dir, is_draft=True)
 
-    def _load_entities_from_dir(self, entities_path: Path, is_draft: bool) -> None:
+    def _load_entities_from_dir(self, entities_path: Path | None, is_draft: bool) -> None:
         """Load entity YAML files from a single directory."""
-        if not entities_path.exists():
+        if entities_path is None or not entities_path.exists():
             return
 
         for yaml_file in entities_path.glob("*.yaml"):

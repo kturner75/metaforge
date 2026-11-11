@@ -212,7 +212,7 @@ The seamless path from AI brainstorm conversation to running, promotable entity.
 ## Testing
 - [ ] Frontend component tests for core field types
 - [ ] E2E flows for CRUD on a sample entity
-- [ ] Update MCP test suite for fastmcp 3.x API — tests currently access raw function via `.fn` (fastmcp 2.x `FunctionTool` attribute); fastmcp 3.x makes `@tool`-decorated functions plain callables with no `.fn`. `pyproject.toml` pins `fastmcp>=2.0.0,<3.0.0` as a workaround (commit `1acd555`); the pin should be lifted once tests are ported. `backend/uv.lock` was last generated in `0ecd2c4` and still locks fastmcp 3.2.0 with specifier `>=2.0.0` (no upper bound), so `uv sync` and `pip install` disagree. PyPI's current release as of 2026-10-09 is 4.1.0.
+- [ ] Update MCP test suite for fastmcp 3.x API — tests currently access raw function via `.fn` (fastmcp 2.x `FunctionTool` attribute); fastmcp 3.x makes `@tool`-decorated functions plain callables with no `.fn`. `pyproject.toml` pins `fastmcp>=2.0.0,<3.0.0` as a workaround (commit `1acd555`); the pin should be lifted once tests are ported. `backend/uv.lock` was regenerated with MF-003 (server extra) and now locks fastmcp 2.14.7 under the `<3.0.0` pin, so `uv sync` and `pip install` agree again. PyPI's current release as of 2026-10-09 is 4.1.0.
 
 ## Documentation
 - [ ] **"Building an App with MetaForge"** guide — end-to-end walkthrough for creating a new app repo using the framework as a dependency. Should cover: repo setup, installing MetaForge as a local/published package, defining your first entity YAML, running the dev server, registering hooks, and a recommended CLAUDE.md template for app projects so Claude Code has framework context without duplicating MetaForge internals.

@@ -113,6 +113,14 @@
         }
       }
     },
+    "extensionsMap": {
+      "description": "Host-owned metadata keyed by namespace (e.g. the embedding app's name). MetaForge loads it and returns it through the API and MCP but never interprets it. Each namespace holds an object whose contents belong to that host. The 'metaforge' namespace is reserved.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_.-]*$"
+      },
+      "additionalProperties": { "type": "object" }
+    },
     "fieldDef": {
       "type": "object",
       "required": ["name", "type"],
@@ -136,7 +144,8 @@
           "type": "array",
           "items": { "$ref": "#/$defs/picklistOption" }
         },
-        "permissions": { "$ref": "#/$defs/fieldPermissionsDef" }
+        "permissions": { "$ref": "#/$defs/fieldPermissionsDef" },
+        "extensions": { "$ref": "#/$defs/extensionsMap" }
       }
     },
     "sortSpec": {

@@ -1,9 +1,16 @@
 """Load and resolve entity metadata from YAML files."""
 
+import copy
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 import yaml
+
+
+# Namespace keys under `extensions`, e.g. the embedding app's name.
+# Must match extensionsMap.propertyNames in schemas/_defs.schema.json.
+EXTENSION_NAMESPACE_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]*$")
 
 
 @dataclass
@@ -56,6 +63,13 @@ class FieldDefinition:
     ui: FieldUIConfig = field(default_factory=FieldUIConfig)
     relation: RelationConfig | None = None
     permissions: "FieldPermissions | None" = None
+    description: str = ""
+    # Host-owned metadata keyed by namespace; MetaForge never interprets it.
+    extensions: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def extension(self, namespace: str) -> dict[str, Any]:
+        """Return this field's extension data for ``namespace`` ({} if none)."""
+        return self.extensions.get(namespace, {})
 
 
 @dataclass
@@ -129,6 +143,13 @@ class EntityModel:
     label_field: str | None = None  # Field used as human-readable record label (breadcrumbs, titles)
     permissions: "EntityPermissions | None" = None
     is_draft: bool = False  # True when loaded from metadata/drafts/
+    description: str = ""
+    # Host-owned metadata keyed by namespace; MetaForge never interprets it.
+    extensions: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def extension(self, namespace: str) -> dict[str, Any]:
+        """Return this entity's extension data for ``namespace`` ({} if none)."""
+        return self.extensions.get(namespace, {})
 
 
 class MetadataLoader:
@@ -234,7 +255,7 @@ class MetadataLoader:
         all_fields.extend(data.get("fields", []))
 
         # Convert to FieldDefinition objects
-        fields = [self._resolve_field(f) for f in all_fields]
+        fields = [self._resolve_field(f, entity_name=name) for f in all_fields]
 
         # Find primary key
         primary_key = "id"
@@ -290,9 +311,43 @@ class MetadataLoader:
             label_field=label_field,
             permissions=entity_permissions,
             is_draft=is_draft,
+            description=data.get("description") or "",
+            extensions=self._resolve_extensions(data.get("extensions"), f"entity '{name}'"),
         )
 
-    def _resolve_field(self, data: dict) -> FieldDefinition:
+    def _resolve_extensions(self, data: Any, owner: str) -> dict[str, dict[str, Any]]:
+        """Validate and copy an ``extensions`` map.
+
+        The map is keyed by namespace and each value is an object owned by the
+        host app. MetaForge checks only the shape, so a typo fails at load time
+        instead of being silently dropped. The contents are deep-copied so
+        entities that include the same block never share mutable state.
+        """
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"{owner}: 'extensions' must be a map of namespace to object, "
+                f"got {type(data).__name__}"
+            )
+        result: dict[str, dict[str, Any]] = {}
+        for namespace, value in data.items():
+            if not isinstance(namespace, str) or not EXTENSION_NAMESPACE_PATTERN.match(namespace):
+                raise ValueError(
+                    f"{owner}: extension namespace {namespace!r} must be lowercase, "
+                    "start with a letter and use only a-z, 0-9, '_', '-' or '.'"
+                )
+            if value is None:
+                value = {}
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"{owner}: extensions.{namespace} must be an object, "
+                    f"got {type(value).__name__}"
+                )
+            result[namespace] = copy.deepcopy(value)
+        return result
+
+    def _resolve_field(self, data: dict, entity_name: str = "") -> FieldDefinition:
         """Convert field dict to FieldDefinition."""
         name = data["name"]
         field_type = data.get("type", "string")
@@ -342,6 +397,11 @@ class MetadataLoader:
             validation=validation,
             relation=relation,
             permissions=field_permissions,
+            description=data.get("description") or "",
+            extensions=self._resolve_extensions(
+                data.get("extensions"),
+                f"field '{entity_name}.{name}'" if entity_name else f"field '{name}'",
+            ),
         )
 
     def _get_on(self, data: dict, default: list[str] | None = None) -> list[str]:

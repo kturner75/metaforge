@@ -21,6 +21,7 @@ This directory contains Architecture Decision Records (ADRs) for MetaForge.
 | [0013](0013-entity-design-sandbox.md) | AI-Assisted Entity Design Sandbox | Accepted |
 | [0014](0014-file-layout-metadata.md) | File-Layout Metadata (Delimited & Fixed-Width) | Accepted |
 | [0015](0015-embeddable-library.md) | MetaForge as an Embeddable Library | Proposed |
+| [0016](0016-extensions-map-and-descriptions.md) | Namespaced Extensions Map and Descriptions | Proposed |
 
 ## Creating New ADRs
 

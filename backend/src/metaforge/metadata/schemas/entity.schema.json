@@ -70,6 +70,9 @@
         },
         "permissions": {
           "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/entityPermissionsDef"
+        },
+        "extensions": {
+          "$ref": "https://metaforge.dev/schemas/_defs.schema.json#/$defs/extensionsMap"
         }
       }
     }

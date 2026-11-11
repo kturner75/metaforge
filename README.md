@@ -103,6 +103,18 @@ hooks:
 
 The loader reads `includes`, `fields`, `defaults`, and `hooks`. It does not read a field-level `calculated` key or an entity-level `lifecycle` block. Computed values are `defaults` expressions (`addDays`, `today`, `concat`, and the other functions in `validation/expressions/builtins.py`). Save and delete side effects are hook declarations (ADR-0009) plus a Python function registered with `@hook`. Relations are `relation` fields, not a top-level `relations` list. Picklist `options` are `{value, label}` objects. `metadata/blocks/address.yaml` still has a `calculated` entry on `latLong`; the loader drops it. An `auditable` flag is stored on the entity model and does not pull in AuditTrail — include the block explicitly.
 
+Entities and fields also accept a `description` and an `extensions` map for metadata owned by an embedding app. Each key under `extensions` is a namespace the host chooses (lowercase, e.g. its own name; `metaforge` is reserved) holding an object MetaForge stores and returns through the API and MCP but never interprets (ADR-0016):
+
+```yaml
+fields:
+  - name: ein
+    type: string
+    description: Federal Employer Identification Number.
+    extensions:
+      hostapp:
+        help: "Format: 12-3456789."
+```
+
 Rich field types (the registry in `backend/src/metaforge/core/types.py`):
 
 id, uuid, string, name, text, description, email, phone, url, checkbox, boolean, picklist, multi_picklist, date, datetime, currency, percent, number, address, attachment, relation

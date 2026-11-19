@@ -1,6 +1,6 @@
 [project]
 name = "metaforge"
-version = "0.2.0"
+version = "0.3.0"
 description = "A metadata-driven full-stack framework for data-centric web applications"
 readme = "README.md"
 requires-python = ">=3.11"

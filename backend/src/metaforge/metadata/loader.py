@@ -1,12 +1,13 @@
-"""Load and resolve entity metadata from YAML files."""
+"""Load and resolve entity metadata from files or in-memory documents."""
 
 import copy
 import re
-from pathlib import Path
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
-import yaml
 
+import yaml
 
 # Namespace keys under `extensions`, e.g. the embedding app's name.
 # Must match extensionsMap.propertyNames in schemas/_defs.schema.json.
@@ -140,7 +141,7 @@ class EntityModel:
     validators: list[ValidatorConfig] = field(default_factory=list)
     defaults: list[DefaultConfig] = field(default_factory=list)
     hooks: dict[str, list[HookConfig]] = field(default_factory=dict)
-    label_field: str | None = None  # Field used as human-readable record label (breadcrumbs, titles)
+    label_field: str | None = None  # Human-readable record label for breadcrumbs and titles
     permissions: "EntityPermissions | None" = None
     is_draft: bool = False  # True when loaded from metadata/drafts/
     description: str = ""
@@ -153,7 +154,7 @@ class EntityModel:
 
 
 class MetadataLoader:
-    """Loads entity and block definitions from YAML files.
+    """Loads entity and block definitions from YAML files or documents.
 
     By default it reads ``entities/``, ``blocks/`` and ``drafts/`` under one
     ``metadata_path``. A host that keeps its metadata elsewhere (ADR-0015) can
@@ -164,6 +165,8 @@ class MetadataLoader:
     An explicit directory wins over the one derived from ``metadata_path``.
     Drafts are read only from ``drafts_dir``, or from ``metadata_path/drafts``
     when ``metadata_path`` is given. A directory that does not exist is skipped.
+    Use :meth:`from_documents` to load an independent snapshot of documents
+    provided by a host.
     """
 
     def __init__(
@@ -173,14 +176,17 @@ class MetadataLoader:
         entities_dir: Path | str | None = None,
         blocks_dir: Path | str | None = None,
         drafts_dir: Path | str | None = None,
+        _documents: tuple[list[dict], list[dict], list[dict]] | None = None,
     ):
         base = Path(metadata_path) if metadata_path is not None else None
-        if base is None and entities_dir is None:
+        if base is None and entities_dir is None and _documents is None:
             raise ValueError("MetadataLoader needs metadata_path or entities_dir")
 
         self.metadata_path = base
-        self.entities_dir: Path = (
-            Path(entities_dir) if entities_dir is not None else Path(base, "entities")
+        self.entities_dir: Path | None = (
+            Path(entities_dir)
+            if entities_dir is not None
+            else (base / "entities" if base is not None else None)
         )
         self.blocks_dir: Path | None = (
             Path(blocks_dir) if blocks_dir is not None
@@ -190,17 +196,41 @@ class MetadataLoader:
             Path(drafts_dir) if drafts_dir is not None
             else (base / "drafts" if base is not None else None)
         )
+        self._documents = _documents
         self.entities: dict[str, EntityModel] = {}
         self.blocks: dict[str, list[dict]] = {}
 
+    @classmethod
+    def from_documents(
+        cls,
+        entities: Iterable[dict],
+        blocks: Iterable[dict] = (),
+        *,
+        drafts: Iterable[dict] = (),
+    ) -> "MetadataLoader":
+        """Load entity and block documents in the same shape as YAML files."""
+        snapshot = copy.deepcopy((list(entities), list(blocks), list(drafts)))
+        loader = cls(_documents=snapshot)
+        loader.load_all()
+        return loader
+
     def load_all(self) -> None:
         """Load all blocks and entities."""
-        self._load_blocks()
-        self._load_entities()
+        if self._documents is None:
+            entities = self._read_documents(self.entities_dir)
+            blocks = self._read_documents(self.blocks_dir)
+            drafts = self._read_documents(self.drafts_dir)
+        else:
+            entities, blocks, drafts = copy.deepcopy(self._documents)
+        for data in blocks:
+            if data and "block" in data:
+                self.blocks[data["block"]] = data.get("fields", [])
+        self._load_entities(entities, is_draft=False)
+        self._load_entities(drafts, is_draft=True)
         self._validate_abbreviations()
 
     def reload(self) -> None:
-        """Reload all metadata from disk, replacing any previously loaded data.
+        """Reload metadata from its source, replacing any previously loaded data.
 
         Safe to call on a live loader — clears accumulated state then re-runs
         load_all() so callers immediately see the updated definitions.
@@ -236,34 +266,18 @@ class MetadataLoader:
                 )
             seen[abbrev] = entity_name
 
-    def _load_blocks(self) -> None:
-        """Load reusable block definitions."""
-        blocks_path = self.blocks_dir
-        if blocks_path is None or not blocks_path.exists():
-            return
+    @staticmethod
+    def _read_documents(path: Path | None) -> Iterable[dict]:
+        if path is not None and path.exists():
+            for yaml_file in path.glob("*.yaml"):
+                with open(yaml_file) as f:
+                    yield yaml.safe_load(f)
 
-        for yaml_file in blocks_path.glob("*.yaml"):
-            with open(yaml_file) as f:
-                data = yaml.safe_load(f)
-                if data and "block" in data:
-                    self.blocks[data["block"]] = data.get("fields", [])
-
-    def _load_entities(self) -> None:
-        """Load entity definitions from entities/ and drafts/ directories."""
-        self._load_entities_from_dir(self.entities_dir, is_draft=False)
-        self._load_entities_from_dir(self.drafts_dir, is_draft=True)
-
-    def _load_entities_from_dir(self, entities_path: Path | None, is_draft: bool) -> None:
-        """Load entity YAML files from a single directory."""
-        if entities_path is None or not entities_path.exists():
-            return
-
-        for yaml_file in entities_path.glob("*.yaml"):
-            with open(yaml_file) as f:
-                data = yaml.safe_load(f)
-                if data and "entity" in data:
-                    entity = self._resolve_entity(data, is_draft=is_draft)
-                    self.entities[entity.name] = entity
+    def _load_entities(self, documents: Iterable[dict], *, is_draft: bool) -> None:
+        for data in documents:
+            if data and "entity" in data:
+                entity = self._resolve_entity(data, is_draft=is_draft)
+                self.entities[entity.name] = entity
 
     def _resolve_entity(self, data: dict, is_draft: bool = False) -> EntityModel:
         """Resolve an entity definition, expanding blocks."""

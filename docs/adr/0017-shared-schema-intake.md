@@ -26,7 +26,13 @@ generation-specific settings such as decimal places from the provenance.
 
 Keep the parser identical to Engram's during migration. Use the current
 supplier-onboarding YAML as a parity fixture for mfgen. CSV and TSV data
-dictionary intake can use the same table and column model when it is added.
+dictionaries use the same table and column model through `parse_dictionary`.
+
+Hosts can load entity and block documents from memory using
+`MetadataLoader.from_documents`. The core metadata diff compares the
+resolved entities without a database connection. It reports entity and field
+additions and removals, and changes to types, required flags, picklist values,
+and relations.
 
 ## Consequences
 

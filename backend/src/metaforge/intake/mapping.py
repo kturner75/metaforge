@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from .ddl import Column, Ref, Schema, Table, parse_ddl
+from .dictionary import DOCUMENTED
 
 # Names that settle a column's kind without a model, as in Engram's importer.
 _NAME_RULES = [
@@ -331,7 +332,6 @@ def _candidates(table: Table, col: Column) -> tuple[tuple[str, ...], str, list[s
     """Rank allowed types, retaining the deterministic import default."""
     sql_type, args = col.type_name, col.type_args
     raw = col.raw_type or sql_type
-    nums = [int(arg) for arg in args if arg.isdigit()]
     if sql_type in ("ENUM", "SET"):
         kind = "multi_picklist" if sql_type == "SET" or col.is_array else "picklist"
         return (kind,), raw, list(args)
@@ -349,6 +349,21 @@ def _candidates(table: Table, col: Column) -> tuple[tuple[str, ...], str, list[s
         if kind == "percent" and sql_type in _INT_TYPES | _FLOAT_TYPES | _DECIMAL_TYPES:
             return (kind,), f"{raw}, inferred from the column name", None
 
+    kinds, reason = rank_sql_types(col)
+    if kinds[0] == "string" and sql_type in _CHAR_TYPES and _is_name_field(col):
+        return ("name", *kinds), f"{raw}, inferred from the column name", None
+    return kinds, reason, None
+
+
+def rank_sql_types(col: Column) -> tuple[tuple[str, ...], str]:
+    """Return types allowed by SQL alone, with the default first and its basis."""
+    sql_type, args = col.type_name, col.type_args
+    raw = col.raw_type or sql_type
+    nums = [int(arg) for arg in args if arg.isdigit()]
+    if sql_type == DOCUMENTED:
+        return ("string",), "Dictionary row without a SQL type"
+    if sql_type in ("ENUM", "SET"):
+        return ("multi_picklist" if sql_type == "SET" or col.is_array else "picklist",), raw
     if col.is_array:
         kinds = ("description",)
     elif sql_type in ("BOOLEAN", "BOOL", "BIT") or (sql_type == "TINYINT" and nums[:1] == [1]):
@@ -383,11 +398,9 @@ def _candidates(table: Table, col: Column) -> tuple[tuple[str, ...], str, list[s
         kinds = ("description", "string", "address")
     elif sql_type in _CHAR_TYPES:
         kinds = ("string", "email", "phone", "url", "address")
-        if _is_name_field(col):
-            kinds = ("name", *kinds)
     else:
-        return ("string",), f"{raw} (unknown SQL type; mapped to string)", None
-    return kinds, raw, None
+        return ("string",), f"{raw} (unknown SQL type; mapped to string)"
+    return kinds, raw
 
 
 def _source(table: Table, col: Column, candidates: tuple[str, ...], reason: str) -> TypeChoice:
@@ -481,7 +494,7 @@ def _field(
     elif flat == "tenantid":
         fd["auto"] = "context.tenantId"
         fd["readOnly"] = True
-    elif flat in ("rowversion", "rowguid"):
+    elif flat in ("rowversion", "rowguid") or col.system:
         # A database-managed concurrency token: nothing to generate.
         fd["readOnly"] = True
 

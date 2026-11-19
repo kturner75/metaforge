@@ -1,0 +1,89 @@
+entity: Vendor
+abbreviation: VEN
+displayName: Vendor
+pluralName: Vendors
+description: A supplier we buy from
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: legalName
+    type: string
+    validation:
+      required: true
+      maxLength: 200
+
+  - name: dbaName
+    type: string
+    validation:
+      maxLength: 200
+
+  - name: taxId
+    type: string
+    description: EIN as shown on the W-9, like 12-3456789
+    validation:
+      required: true
+      maxLength: 10
+
+  - name: paymentTerms
+    type: picklist
+    options:
+      - value: net_15
+        label: Net 15
+      - value: net_30
+        label: Net 30
+      - value: net_45
+        label: Net 45
+      - value: net_60
+        label: Net 60
+    validation:
+      required: true
+
+  - name: annualSpendEst
+    type: currency
+    validation:
+      min: 0
+
+  - name: discountPct
+    type: percent
+    validation:
+      min: 0
+      max: 100
+
+  - name: website
+    type: url
+    validation:
+      maxLength: 255
+
+  - name: remitTo
+    type: description
+    description: Where payments are mailed
+    validation:
+      maxLength: 400
+
+  - name: isMinorityOwned
+    type: checkbox
+    validation:
+      required: true
+
+  - name: firstOrderOn
+    type: date
+
+  - name: insuranceExpires
+    type: date
+    validation:
+      required: true
+
+  - name: notes
+    type: description
+
+  - name: createdAt
+    type: datetime
+    auto: now
+    readOnly: true
+
+  - name: updatedBy
+    type: string
+    auto: context.userId
+    readOnly: true

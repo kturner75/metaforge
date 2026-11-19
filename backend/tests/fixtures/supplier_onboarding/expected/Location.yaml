@@ -1,0 +1,50 @@
+entity: Location
+abbreviation: LOC
+displayName: Location
+pluralName: Locations
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: vendorId
+    type: relation
+    displayName: Vendor
+    relation:
+      entity: Vendor
+      onDelete: cascade
+    validation:
+      required: true
+
+  - name: siteName
+    type: string
+    validation:
+      required: true
+      maxLength: 120
+
+  - name: street
+    type: string
+    validation:
+      required: true
+      maxLength: 200
+
+  - name: city
+    type: string
+    validation:
+      required: true
+      maxLength: 100
+
+  - name: postalCode
+    type: string
+    validation:
+      maxLength: 12
+
+  - name: isPrimary
+    type: checkbox
+    validation:
+      required: true
+
+  - name: squareFeet
+    type: number
+    validation:
+      min: 1

@@ -1,0 +1,56 @@
+entity: VendorContact
+abbreviation: VEND
+displayName: Vendor Contact
+pluralName: Vendor Contacts
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: vendorId
+    type: relation
+    displayName: Vendor
+    relation:
+      entity: Vendor
+      onDelete: cascade
+    validation:
+      required: true
+
+  - name: firstName
+    type: name
+    validation:
+      required: true
+      maxLength: 80
+
+  - name: lastName
+    type: name
+    validation:
+      required: true
+      maxLength: 80
+
+  - name: contactRole
+    type: picklist
+    options:
+      - value: primary
+        label: Primary
+      - value: billing
+        label: Billing
+      - value: technical
+        label: Technical
+    validation:
+      required: true
+
+  - name: email
+    type: email
+    validation:
+      maxLength: 255
+
+  - name: directLine
+    type: string
+    validation:
+      maxLength: 30
+
+  - name: title
+    type: string
+    validation:
+      maxLength: 100

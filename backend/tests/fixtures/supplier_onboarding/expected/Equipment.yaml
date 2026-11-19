@@ -1,0 +1,65 @@
+entity: Equipment
+abbreviation: EQU
+displayName: Equipment
+pluralName: Equipment
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: locationId
+    type: relation
+    displayName: Location
+    relation:
+      entity: Location
+      onDelete: cascade
+    validation:
+      required: true
+
+  - name: manufacturerId
+    type: relation
+    displayName: Manufacturer
+    relation:
+      entity: Manufacturer
+
+  - name: serialNumber
+    type: string
+    validation:
+      required: true
+      maxLength: 40
+
+  - name: category
+    type: picklist
+    options:
+      - value: forklift
+        label: Forklift
+      - value: conveyor
+        label: Conveyor
+      - value: compressor
+        label: Compressor
+      - value: packaging_line
+        label: Packaging Line
+    validation:
+      required: true
+
+  - name: purchasedOn
+    type: date
+
+  - name: purchasePrice
+    type: currency
+
+  - name: utilization
+    type: number
+    extensions:
+      mfgen:
+        places: 3
+    description: Share of the shift the machine runs, from 0 to 1
+    validation:
+      max: 9.999
+
+  - name: lastServiced
+    type: datetime
+
+  - name: rowVersion
+    type: number
+    readOnly: true

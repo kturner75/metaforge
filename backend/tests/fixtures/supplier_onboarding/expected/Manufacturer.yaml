@@ -1,0 +1,24 @@
+entity: Manufacturer
+abbreviation: MAN
+displayName: Manufacturer
+pluralName: Manufacturers
+fields:
+  - name: id
+    type: id
+    primaryKey: true
+
+  - name: name
+    type: name
+    validation:
+      required: true
+      maxLength: 150
+
+  - name: country
+    type: string
+    validation:
+      maxLength: 2
+
+  - name: supportLine
+    type: string
+    validation:
+      maxLength: 30

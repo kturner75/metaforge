@@ -4,6 +4,7 @@ export function Checkbox({ value, onChange, field, disabled }: FieldComponentPro
   return (
     <label className="field-checkbox">
       <input
+        id={field.name}
         type="checkbox"
         checked={!!value}
         onChange={(e) => onChange?.(e.target.checked)}

@@ -37,6 +37,7 @@ export function Select({ value, onChange, field, disabled, error, mode = 'single
 
   return (
     <select
+      id={field.name}
       className={`field-select ${error ? 'field-error' : ''}`}
       value={(value as string) ?? ''}
       onChange={(e) => onChange?.(e.target.value)}
